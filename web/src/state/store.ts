@@ -117,7 +117,7 @@ export interface LiveInfo {
   lastUpdate: number;
   /** Connected with the public read-only viewer token: can read, cannot write. */
   viewer: boolean;
-  /** This event's response, measured from the database: everyone who asked for help in the last 12 h. */
+  /** The latest burst of SOS events (no gap over 30 min), measured from the database. */
   wave: WaveStat | null;
 }
 

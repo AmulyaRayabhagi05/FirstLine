@@ -324,8 +324,16 @@ function snapshot(conn: DbConnection) {
     .sort((a, b) => b.at - a.at);
 
   // This event's response, straight from the rows: who asked for help, how fast Nemotron triaged them.
-  const WINDOW = 12 * 60 * 60 * 1000;
-  const waveSos = sosAll.filter((s) => now - ms(s.createdAt)! < WINDOW);
+  // The latest burst: walk back from the newest SOS (within 12 h) until a gap of over 30 minutes.
+  const recent = sosAll.filter((s) => now - ms(s.createdAt)! < 12 * 60 * 60 * 1000).sort((a, b) => ms(b.createdAt)! - ms(a.createdAt)!);
+  let cut = recent.length;
+  for (let i = 1; i < recent.length; i++) {
+    if (ms(recent[i - 1].createdAt)! - ms(recent[i].createdAt)! > 30 * 60 * 1000) {
+      cut = i;
+      break;
+    }
+  }
+  const waveSos = recent.slice(0, cut);
   let wave: WaveStat | null = null;
   if (waveSos.length > 0) {
     const firstSos = new Map<string, number>();
