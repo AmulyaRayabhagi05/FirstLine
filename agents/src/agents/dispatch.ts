@@ -86,6 +86,8 @@ For one SOS you decide who goes. Rules:
 - When an offer timed out or was declined, replan: offer to the next helper in the same ring, then the next ring. list_helpers already skips helpers who were tried. If it returns nobody, escalate.
 - helper_id must be a number taken from list_helpers; never invent one.
 - Offer to one helper at a time. Never offer to someone not returned by list_helpers.
+- The person who sent the SOS is never their own helper; only use helper_id values listed under "Available helpers" or returned by list_helpers.
+- An offer is not an acceptance. After assign_helper, say the helper was offered the request and is waiting to answer, never that they accepted.
 Then set done=true with a one-sentence decision.`;
 
 export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchTrigger): Promise<DispatchOutcome> {
@@ -178,8 +180,17 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
     trigger.kind === "new_sos"
       ? "New SOS, nobody offered yet."
       : `REPLAN: the offer to helper ${trigger.assignment.helperId} (ring ${trigger.assignment.ring}) ${trigger.kind === "timeout" ? "timed out without an answer" : "was declined"}. Call list_helpers with NO ring filter (it already skips everyone tried, best first) and offer to the first helper it returns, whatever their ring.`;
+  const pool = await candidates();
+  const helperLines = pool.length
+    ? pool
+        .slice(0, 5)
+        .map((c) => `helper_id ${c.helper_id}: ${c.name}, ring ${c.ring}, skills ${c.skills.join("/") || "none"}, ${c.distance_km} km`)
+        .join("; ")
+    : "none (escalate instead of offering)";
   const task = [
-    `SOS #${sosId} from ${person?.name ?? `person ${sos.personId}`} (age ${person?.age ?? "?"}, mobility ${person?.mobility ?? "?"}): "${sos.message}"`,
+    `SOS #${sosId} from ${person?.name ?? `person ${sos.personId}`} (person ${sos.personId}, age ${person?.age ?? "?"}, mobility ${person?.mobility ?? "?"}): "${sos.message}"`,
+    `Person ${sos.personId} is the one who needs help and is never a helper.`,
+    `Available helpers, best first: ${helperLines}.`,
     triage
       ? `Triage: ${triage.priority}, urgency ${triage.urgency}, needs ${triage.needs}, confidence ${triage.confidence}. ${triage.reason}`
       : "Triage: not available.",
