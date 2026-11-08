@@ -26,6 +26,12 @@ export interface TwilioConfig {
   fromNumber?: string;
   /** Public base URL Twilio can reach (ngrok etc.), no trailing slash. */
   publicUrl?: string;
+  /**
+   * Accept webhooks without a valid X-Twilio-Signature when no auth token is set. Local dev only
+   * (TWILIO_ALLOW_UNSIGNED=1): without a signature anyone who finds the URL can mark people safe
+   * (`FL OK`, `/voice/result?personId=N` with Digits=1) or file SOS events.
+   */
+  allowUnsigned?: boolean;
 }
 
 export function twilioConfigFromEnv(env: NodeJS.ProcessEnv = process.env): TwilioConfig {
@@ -34,6 +40,7 @@ export function twilioConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Twili
     authToken: env.TWILIO_AUTH_TOKEN,
     fromNumber: env.TWILIO_FROM_NUMBER,
     publicUrl: env.PUBLIC_BASE_URL?.replace(/\/$/, ""),
+    allowUnsigned: env.TWILIO_ALLOW_UNSIGNED === "1",
   };
 }
 
@@ -64,16 +71,17 @@ export class MockTwilio implements TwilioLike {
 }
 
 /**
- * Validates X-Twilio-Signature. Returns true when no auth token is configured (local dev),
- * so set TWILIO_AUTH_TOKEN anywhere the webhook is publicly reachable.
+ * Validates X-Twilio-Signature. Fails closed: with no auth token configured every request is
+ * refused unless `allowUnsigned` is set (TWILIO_ALLOW_UNSIGNED=1, local dev only).
  */
 export function isValidTwilioRequest(
   authToken: string | undefined,
   signature: string | undefined,
   url: string,
   params: Record<string, string>,
+  allowUnsigned = false,
 ): boolean {
-  if (!authToken) return true;
+  if (!authToken) return allowUnsigned;
   if (!signature) return false;
   return twilio.validateRequest(authToken, signature, url, params);
 }
@@ -117,4 +125,9 @@ export function smsTwiml(reply: string): string {
   const r = new twilio.twiml.MessagingResponse();
   r.message(reply);
   return r.toString();
+}
+
+/** A TwiML response that sends nothing back. */
+export function emptyTwiml(): string {
+  return new twilio.twiml.MessagingResponse().toString();
 }

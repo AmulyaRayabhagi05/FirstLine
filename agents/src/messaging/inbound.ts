@@ -7,6 +7,10 @@ import type { ChannelPerson, ChannelStore } from "./store.js";
 /** person_id used when the sender is not registered (contract has no nullable person_id). */
 export const UNKNOWN_PERSON_ID = 0;
 
+/** Longest SOS text / check-in note stored (the reducer refuses over 2000 characters). */
+export const MAX_INBOUND_TEXT = 1000;
+const clip = (s: string) => (s.length > MAX_INBOUND_TEXT ? `${s.slice(0, MAX_INBOUND_TEXT - 1)}…` : s);
+
 export interface InboundText {
   clientId: string;
   text: string;
@@ -27,7 +31,14 @@ export async function handleInboundText(
   msg: InboundText,
 ): Promise<{ parsed: ParsedMessage; outcome: InboundOutcome }> {
   const parsed = parseMessage(msg.text);
-  const personId = ("personId" in parsed && parsed.personId) || msg.person?.id;
+  // "#<id>" names a person explicitly (shared phones, mesh radios). The sender's own identity
+  // comes from the channel (phone number / node map), which "#<id>" cannot override for a
+  // check-in: anyone could otherwise text "FL OK #12" and mark a stranger safe. Naming someone
+  // else is allowed only to raise an alarm (SOS / HELP), and the SOS text says so.
+  const claimed = "personId" in parsed ? parsed.personId : undefined;
+  const own = msg.person?.id;
+  const forSomeoneElse = !!claimed && claimed !== own;
+  const personId = claimed || own;
 
   const location = (p: ParsedMessage) => {
     if (p.kind === "sos" && p.lat !== undefined && p.lng !== undefined) return { lat: p.lat, lng: p.lng };
@@ -47,17 +58,26 @@ export async function handleInboundText(
       };
 
     case "ok": {
-      if (!personId) {
-        return { parsed, outcome: { action: "rejected", reply: "FirstLine: this number is not registered. Add #<your id> or text FL SOS if you need help." } };
+      if (forSomeoneElse) {
+        return {
+          parsed,
+          outcome: {
+            action: "rejected",
+            reply: "FirstLine: you can only mark yourself safe from your own registered phone or radio. A neighbor or responder will confirm others.",
+          },
+        };
+      }
+      if (!own) {
+        return { parsed, outcome: { action: "rejected", reply: "FirstLine: this number is not registered. Text FL SOS if you need help." } };
       }
       await store.checkIn({
         clientId: msg.clientId,
-        personId,
+        personId: own,
         kind: msg.channel,
         result: "safe",
-        note: parsed.note,
+        note: clip(parsed.note),
       });
-      return { parsed, outcome: { action: "check_in", personId, reply: "FirstLine: marked you safe. Thank you." } };
+      return { parsed, outcome: { action: "check_in", personId: own, reply: "FirstLine: marked you safe. Thank you." } };
     }
 
     case "sos":
@@ -75,7 +95,8 @@ export async function handleInboundText(
       }
       const loc = location(parsed);
       const pid = personId || UNKNOWN_PERSON_ID;
-      const message = parsed.kind === "free" ? parsed.text : sosMessage(parsed);
+      const text = parsed.kind === "free" ? parsed.text : sosMessage(parsed);
+      const message = clip(forSomeoneElse ? `${text} [reported for #${claimed} by another ${msg.channel} sender]` : text);
       await store.pressSos({
         clientId: msg.clientId,
         personId: pid,
