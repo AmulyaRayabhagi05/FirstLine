@@ -1,0 +1,27 @@
+{
+  "name": "porchlight-sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx src/cli/seed.ts",
+    "storm": "tsx src/cli/storm.ts",
+    "measure": "tsx src/cli/measure.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "h3-js": "^4.5.0",
+    "pg": "^8.23.1"
+  }
+}
