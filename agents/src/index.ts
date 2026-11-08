@@ -331,7 +331,20 @@ export async function main(env: NodeJS.ProcessEnv = process.env) {
 
   const { FirstLineVoiceAssistant, operatorNumbersFromEnv } = await import("./runtime/voiceAssistant.js");
   const assistant = new FirstLineVoiceAssistant(worker.deps, { operatorNumbers: operatorNumbersFromEnv(env) });
-  const channels = startChannels(channelStore, rt.twilio, env, assistant);
+  // Neighbor offer calls: the helper's keypress accepts or declines through the same reducers.
+  const offers = {
+    accept: async (assignmentId: number) => {
+      await store.acceptAssignment(assignmentId);
+      for (const s of await store.listOpenSos()) {
+        if (!(await store.listAssignments(s.id)).some((a) => a.id === assignmentId)) continue;
+        const p = await store.getPerson(s.personId);
+        return { address: p ? (await store.getHousehold(p.householdId))?.address : undefined };
+      }
+      return {};
+    },
+    decline: (assignmentId: number) => store.declineAssignment(assignmentId),
+  };
+  const channels = startChannels(channelStore, rt.twilio, env, assistant, offers);
 
   // Live feeds: weather alerts -> set_cell_alert for cells with people; road hazards -> reports.
   let poller: { stop(): void } | undefined;

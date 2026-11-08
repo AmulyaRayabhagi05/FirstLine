@@ -147,7 +147,25 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
         await log("thought", `Could not text ${c.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    return { assignment_id: assignmentId, helper: c.name, ring: c.ring, texted, note: "offered; times out if not answered" };
+    // And ring them: a call reaches phones where unregistered SMS is blocked, and they accept with a key.
+    let called = false;
+    if (phone && deps.services.comms.offerCall) {
+      try {
+        await deps.services.comms.offerCall({
+          assignmentId,
+          phone,
+          helperName: c.name,
+          personName: person?.name ?? "a neighbor",
+          distanceKm: c.distance_km,
+          message: sos.message,
+        });
+        called = true;
+        await log("tool_result", `Calling ${c.name} with the offer (press 1 to accept, 2 to decline)`);
+      } catch (err) {
+        await log("thought", `Could not call ${c.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    return { assignment_id: assignmentId, helper: c.name, ring: c.ring, texted, called, note: "offered; times out if not answered" };
   };
 
   const tools = [

@@ -13,11 +13,13 @@ import {
   type RoadsService,
   type Services,
   type TimelineEvent,
+  type OfferCall,
   type VisitRequest,
   type WeatherAlert,
   type WeatherService,
 } from "../agents/services.js";
 import type { FeedEvent } from "../feeds/types.js";
+import { placeOfferCall } from "../messaging/offer-call.js";
 import { createTwilioClient, sendSms, twilioConfigFromEnv, type TwilioConfig, type TwilioLike } from "../messaging/twilio.js";
 import { placeCheckInCall } from "../messaging/voice.js";
 import type { ChannelStore } from "../messaging/store.js";
@@ -142,6 +144,11 @@ export class TwilioComms implements CommsService {
       return this.sendSms(person.phone, "FirstLine check-in: are you OK? Reply FL OK, or FL HELP and what you need.");
     }
     const r = await placeCheckInCall({ store: this.channelStore, client: this.client, cfg: this.cfg }, channelPersonOf(person));
+    return { id: r.callSid };
+  }
+
+  async offerCall(req: OfferCall) {
+    const r = await placeOfferCall(this.client, this.cfg, req);
     return { id: r.callSid };
   }
 

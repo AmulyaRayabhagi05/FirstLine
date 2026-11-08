@@ -4,10 +4,12 @@
 //   POST /voice/status   call status callback
 //   POST /voice/inbound  someone calls the FirstLine number (conversation with Nemotron)
 //   POST /voice/converse each spoken turn of that conversation
+//   POST /voice/offer    a helper's keypress on a neighbor offer call (1 accept, 2 decline)
 //   GET  /health
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { handleInboundText } from "./inbound.js";
+import { handleOfferResult, type OfferHandlers } from "./offer-call.js";
 import { handleConverse, handleInboundCall, speakAndHangup, type VoiceAssistant } from "./inbound-voice.js";
 import { inboundLimiter, type RateLimiter } from "./ratelimit.js";
 import type { ChannelStore } from "./store.js";
@@ -21,6 +23,8 @@ export interface ServerDeps extends VoiceDeps {
   limiter?: RateLimiter;
   /** Answers inbound calls; without it the line says to call 911 and hangs up. */
   assistant?: VoiceAssistant;
+  /** Accept / decline for neighbor offer calls. */
+  offers?: OfferHandlers;
 }
 
 const MAX_BODY = 64 * 1024;
@@ -81,6 +85,18 @@ export function createMessagingHandler(deps: ServerDeps) {
           person,
         });
         return send(res, 200, smsTwiml(outcome.reply));
+      }
+
+      if (url.pathname === "/voice/offer") {
+        const assignmentId = Number(url.searchParams.get("assignmentId"));
+        if (!Number.isInteger(assignmentId) || assignmentId <= 0) return send(res, 400, "bad assignmentId", "text/plain");
+        const twiml = await handleOfferResult(deps.offers, deps.cfg, {
+          assignmentId,
+          digits: form.Digits,
+          attempt: Number(url.searchParams.get("attempt") ?? 0),
+          noInput: url.searchParams.get("noinput") === "1",
+        });
+        return send(res, 200, twiml);
       }
 
       if (url.pathname === "/voice/inbound" || url.pathname === "/voice/converse") {

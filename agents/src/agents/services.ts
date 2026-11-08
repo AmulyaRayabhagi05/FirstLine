@@ -43,9 +43,20 @@ export interface VisitRequest {
   reason: string;
 }
 
+export interface OfferCall {
+  assignmentId: Id;
+  phone: string;
+  helperName: string;
+  personName: string;
+  distanceKm: number;
+  message: string;
+}
+
 /** Messaging branch: SMS, automated voice calls, visit requests to helpers. */
 export interface CommsService {
   sendSms(to: string, body: string): Promise<{ id: string }>;
+  /** Ring the helper with the offer; they press 1 to accept, 2 to decline. */
+  offerCall?(req: OfferCall): Promise<{ id: string }>;
   requestCall(req: CallRequest): Promise<{ id: string }>;
   requestVisit(req: VisitRequest): Promise<{ id: string }>;
 }
@@ -88,7 +99,12 @@ export class StubComms implements CommsService {
   readonly sms: { to: string; body: string }[] = [];
   readonly calls: CallRequest[] = [];
   readonly visits: VisitRequest[] = [];
+  readonly offers: OfferCall[] = [];
   private n = 0;
+  async offerCall(req: OfferCall) {
+    this.offers.push(req);
+    return { id: `stub-offer-${++this.n}` };
+  }
   async sendSms(to: string, body: string) {
     this.sms.push({ to, body });
     return { id: `stub-sms-${++this.n}` };
