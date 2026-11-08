@@ -74,6 +74,16 @@ Scheduled:
 - `expire_key_pass` revokes at `expires_at`.
 - `recount_cells` refreshes `hex_cell` counts and `coverage_gap` every 30 s.
 
+Module notes (additions from the server branch; no names above changed):
+- `config` row (`id` 0): `owner` (publisher identity), `worker` (Identity, optional),
+  `assignment_timeout_secs`, `key_pass_ttl_secs`. `set_worker_identity(worker: Identity)`.
+- Extra owner-only reducers: `set_timing(assignment_timeout_secs, key_pass_ttl_secs)` for demos
+  and tests, and `recount_now()` (owner or worker).
+- Key pass refusals are written to `audit_log` (`grant_key_pass_denied:<reason>`,
+  `log_unlock_denied:<reason>`, ...) and the call returns without error, because a thrown error
+  would roll back the audit row. Callers check for the `key_pass` row or the audit row.
+- Generated TypeScript clients expose the snake_case names camelCase (`h3Cell`, `pressSos`).
+
 ## Worker interfaces (`agents/src/`)
 
 Folders, one owner branch each:
