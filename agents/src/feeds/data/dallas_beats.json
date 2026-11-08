@@ -1,0 +1,1177 @@
+{
+"111": {
+"division": "CENTRAL",
+"lat": 32.79949,
+"lng": -96.73426
+},
+"112": {
+"division": "CENTRAL",
+"lat": 32.80814,
+"lng": -96.74574
+},
+"113": {
+"division": "CENTRAL",
+"lat": 32.79538,
+"lng": -96.75392
+},
+"114": {
+"division": "CENTRAL",
+"lat": 32.79862,
+"lng": -96.7637
+},
+"115": {
+"division": "CENTRAL",
+"lat": 32.78291,
+"lng": -96.75678
+},
+"116": {
+"division": "CENTRAL",
+"lat": 32.78986,
+"lng": -96.7737
+},
+"121": {
+"division": "CENTRAL",
+"lat": 32.79728,
+"lng": -96.79818
+},
+"122": {
+"division": "CENTRAL",
+"lat": 32.79723,
+"lng": -96.8049
+},
+"123": {
+"division": "CENTRAL",
+"lat": 32.80138,
+"lng": -96.81033
+},
+"124": {
+"division": "CENTRAL",
+"lat": 32.80696,
+"lng": -96.80051
+},
+"125": {
+"division": "CENTRAL",
+"lat": 32.81847,
+"lng": -96.79339
+},
+"131": {
+"division": "CENTRAL",
+"lat": 32.78685,
+"lng": -96.80955
+},
+"132": {
+"division": "CENTRAL",
+"lat": 32.78733,
+"lng": -96.79847
+},
+"133": {
+"division": "CENTRAL",
+"lat": 32.77873,
+"lng": -96.80269
+},
+"134": {
+"division": "CENTRAL",
+"lat": 32.78098,
+"lng": -96.79462
+},
+"135": {
+"division": "CENTRAL",
+"lat": 32.77675,
+"lng": -96.79393
+},
+"136": {
+"division": "CENTRAL",
+"lat": 32.77125,
+"lng": -96.80869
+},
+"141": {
+"division": "CENTRAL",
+"lat": 32.83127,
+"lng": -96.77568
+},
+"142": {
+"division": "CENTRAL",
+"lat": 32.82686,
+"lng": -96.76152
+},
+"143": {
+"division": "CENTRAL",
+"lat": 32.8148,
+"lng": -96.78395
+},
+"144": {
+"division": "CENTRAL",
+"lat": 32.81489,
+"lng": -96.76533
+},
+"145": {
+"division": "CENTRAL",
+"lat": 32.80739,
+"lng": -96.76764
+},
+"146": {
+"division": "CENTRAL",
+"lat": 32.80872,
+"lng": -96.7793
+},
+"151": {
+"division": "CENTRAL",
+"lat": 32.76385,
+"lng": -96.79649
+},
+"152": {
+"division": "CENTRAL",
+"lat": 32.77162,
+"lng": -96.7847
+},
+"153": {
+"division": "CENTRAL",
+"lat": 32.78313,
+"lng": -96.77747
+},
+"154": {
+"division": "CENTRAL",
+"lat": 32.79344,
+"lng": -96.78707
+},
+"155": {
+"division": "CENTRAL",
+"lat": 32.8024,
+"lng": -96.78536
+},
+"156": {
+"division": "CENTRAL",
+"lat": 32.80041,
+"lng": -96.77461
+},
+"211": {
+"division": "NORTHEAST",
+"lat": 32.88028,
+"lng": -96.76538
+},
+"212": {
+"division": "NORTHEAST",
+"lat": 32.8773,
+"lng": -96.7586
+},
+"213": {
+"division": "NORTHEAST",
+"lat": 32.88003,
+"lng": -96.74785
+},
+"214": {
+"division": "NORTHEAST",
+"lat": 32.86502,
+"lng": -96.76708
+},
+"215": {
+"division": "NORTHEAST",
+"lat": 32.86228,
+"lng": -96.75611
+},
+"216": {
+"division": "NORTHEAST",
+"lat": 32.86756,
+"lng": -96.75496
+},
+"217": {
+"division": "NORTHEAST",
+"lat": 32.8724,
+"lng": -96.75478
+},
+"218": {
+"division": "NORTHEAST",
+"lat": 32.85509,
+"lng": -96.76104
+},
+"219": {
+"division": "NORTHEAST",
+"lat": 32.84511,
+"lng": -96.75591
+},
+"221": {
+"division": "NORTHEAST",
+"lat": 32.80228,
+"lng": -96.69195
+},
+"222": {
+"division": "NORTHEAST",
+"lat": 32.80241,
+"lng": -96.68132
+},
+"223": {
+"division": "NORTHEAST",
+"lat": 32.815,
+"lng": -96.68123
+},
+"224": {
+"division": "NORTHEAST",
+"lat": 32.81093,
+"lng": -96.67549
+},
+"225": {
+"division": "NORTHEAST",
+"lat": 32.82892,
+"lng": -96.67383
+},
+"226": {
+"division": "NORTHEAST",
+"lat": 32.84109,
+"lng": -96.66944
+},
+"227": {
+"division": "NORTHEAST",
+"lat": 32.85336,
+"lng": -96.66245
+},
+"228": {
+"division": "NORTHEAST",
+"lat": 32.84607,
+"lng": -96.64716
+},
+"229": {
+"division": "NORTHEAST",
+"lat": 32.89245,
+"lng": -96.50952
+},
+"231": {
+"division": "NORTHEAST",
+"lat": 32.87781,
+"lng": -96.69229
+},
+"232": {
+"division": "NORTHEAST",
+"lat": 32.85717,
+"lng": -96.69074
+},
+"233": {
+"division": "NORTHEAST",
+"lat": 32.86024,
+"lng": -96.67529
+},
+"234": {
+"division": "NORTHEAST",
+"lat": 32.83772,
+"lng": -96.72858
+},
+"235": {
+"division": "NORTHEAST",
+"lat": 32.83245,
+"lng": -96.70132
+},
+"236": {
+"division": "NORTHEAST",
+"lat": 32.81681,
+"lng": -96.70872
+},
+"237": {
+"division": "NORTHEAST",
+"lat": 32.80152,
+"lng": -96.71259
+},
+"238": {
+"division": "NORTHEAST",
+"lat": 32.79768,
+"lng": -96.70055
+},
+"241": {
+"division": "NORTHEAST",
+"lat": 32.89885,
+"lng": -96.75742
+},
+"242": {
+"division": "NORTHEAST",
+"lat": 32.9039,
+"lng": -96.72977
+},
+"243": {
+"division": "NORTHEAST",
+"lat": 32.89743,
+"lng": -96.73013
+},
+"244": {
+"division": "NORTHEAST",
+"lat": 32.89048,
+"lng": -96.73377
+},
+"245": {
+"division": "NORTHEAST",
+"lat": 32.88497,
+"lng": -96.72721
+},
+"246": {
+"division": "NORTHEAST",
+"lat": 32.88811,
+"lng": -96.71327
+},
+"247": {
+"division": "NORTHEAST",
+"lat": 32.86727,
+"lng": -96.73143
+},
+"248": {
+"division": "NORTHEAST",
+"lat": 32.87126,
+"lng": -96.70595
+},
+"251": {
+"division": "NORTHEAST",
+"lat": 32.92263,
+"lng": -96.75647
+},
+"252": {
+"division": "NORTHEAST",
+"lat": 32.91028,
+"lng": -96.74564
+},
+"253": {
+"division": "NORTHEAST",
+"lat": 32.91833,
+"lng": -96.73683
+},
+"254": {
+"division": "NORTHEAST",
+"lat": 32.92323,
+"lng": -96.71702
+},
+"255": {
+"division": "NORTHEAST",
+"lat": 32.91401,
+"lng": -96.71809
+},
+"256": {
+"division": "NORTHEAST",
+"lat": 32.90644,
+"lng": -96.72251
+},
+"257": {
+"division": "NORTHEAST",
+"lat": 32.90419,
+"lng": -96.71347
+},
+"258": {
+"division": "NORTHEAST",
+"lat": 32.89719,
+"lng": -96.69998
+},
+"311": {
+"division": "SOUTHEAST",
+"lat": 32.77809,
+"lng": -96.7458
+},
+"312": {
+"division": "SOUTHEAST",
+"lat": 32.76961,
+"lng": -96.74467
+},
+"313": {
+"division": "SOUTHEAST",
+"lat": 32.76594,
+"lng": -96.73683
+},
+"314": {
+"division": "SOUTHEAST",
+"lat": 32.78608,
+"lng": -96.73618
+},
+"315": {
+"division": "SOUTHEAST",
+"lat": 32.76138,
+"lng": -96.71467
+},
+"316": {
+"division": "SOUTHEAST",
+"lat": 32.78257,
+"lng": -96.71632
+},
+"317": {
+"division": "SOUTHEAST",
+"lat": 32.78685,
+"lng": -96.70831
+},
+"318": {
+"division": "SOUTHEAST",
+"lat": 32.78694,
+"lng": -96.69159
+},
+"321": {
+"division": "SOUTHEAST",
+"lat": 32.7648,
+"lng": -96.69168
+},
+"322": {
+"division": "SOUTHEAST",
+"lat": 32.77147,
+"lng": -96.68066
+},
+"323": {
+"division": "SOUTHEAST",
+"lat": 32.7758,
+"lng": -96.66738
+},
+"324": {
+"division": "SOUTHEAST",
+"lat": 32.75476,
+"lng": -96.68348
+},
+"325": {
+"division": "SOUTHEAST",
+"lat": 32.75611,
+"lng": -96.66707
+},
+"326": {
+"division": "SOUTHEAST",
+"lat": 32.75559,
+"lng": -96.65257
+},
+"327": {
+"division": "SOUTHEAST",
+"lat": 32.74713,
+"lng": -96.64396
+},
+"328": {
+"division": "SOUTHEAST",
+"lat": 32.74143,
+"lng": -96.65266
+},
+"329": {
+"division": "SOUTHEAST",
+"lat": 32.78374,
+"lng": -96.58789
+},
+"331": {
+"division": "SOUTHEAST",
+"lat": 32.7374,
+"lng": -96.7111
+},
+"332": {
+"division": "SOUTHEAST",
+"lat": 32.74163,
+"lng": -96.69161
+},
+"333": {
+"division": "SOUTHEAST",
+"lat": 32.74152,
+"lng": -96.67294
+},
+"334": {
+"division": "SOUTHEAST",
+"lat": 32.73054,
+"lng": -96.65753
+},
+"335": {
+"division": "SOUTHEAST",
+"lat": 32.72683,
+"lng": -96.6435
+},
+"336": {
+"division": "SOUTHEAST",
+"lat": 32.72727,
+"lng": -96.68678
+},
+"337": {
+"division": "SOUTHEAST",
+"lat": 32.71734,
+"lng": -96.67132
+},
+"338": {
+"division": "SOUTHEAST",
+"lat": 32.70978,
+"lng": -96.64888
+},
+"341": {
+"division": "SOUTHEAST",
+"lat": 32.75458,
+"lng": -96.77882
+},
+"342": {
+"division": "SOUTHEAST",
+"lat": 32.76778,
+"lng": -96.77553
+},
+"343": {
+"division": "SOUTHEAST",
+"lat": 32.77356,
+"lng": -96.76734
+},
+"344": {
+"division": "SOUTHEAST",
+"lat": 32.74335,
+"lng": -96.76321
+},
+"345": {
+"division": "SOUTHEAST",
+"lat": 32.76151,
+"lng": -96.76638
+},
+"346": {
+"division": "SOUTHEAST",
+"lat": 32.76406,
+"lng": -96.75536
+},
+"347": {
+"division": "SOUTHEAST",
+"lat": 32.7531,
+"lng": -96.75839
+},
+"348": {
+"division": "SOUTHEAST",
+"lat": 32.74868,
+"lng": -96.74564
+},
+"351": {
+"division": "SOUTHEAST",
+"lat": 32.72092,
+"lng": -96.72728
+},
+"352": {
+"division": "SOUTHEAST",
+"lat": 32.71925,
+"lng": -96.70675
+},
+"353": {
+"division": "SOUTHEAST",
+"lat": 32.71582,
+"lng": -96.6934
+},
+"354": {
+"division": "SOUTHEAST",
+"lat": 32.69422,
+"lng": -96.67707
+},
+"355": {
+"division": "SOUTHEAST",
+"lat": 32.66722,
+"lng": -96.64755
+},
+"356": {
+"division": "SOUTHEAST",
+"lat": 32.68175,
+"lng": -96.61102
+},
+"357": {
+"division": "SOUTHEAST",
+"lat": 32.68763,
+"lng": -96.57757
+},
+"411": {
+"division": "SOUTHWEST",
+"lat": 32.76265,
+"lng": -96.81966
+},
+"412": {
+"division": "SOUTHWEST",
+"lat": 32.75718,
+"lng": -96.84117
+},
+"413": {
+"division": "SOUTHWEST",
+"lat": 32.74677,
+"lng": -96.82596
+},
+"414": {
+"division": "SOUTHWEST",
+"lat": 32.74958,
+"lng": -96.81655
+},
+"415": {
+"division": "SOUTHWEST",
+"lat": 32.75936,
+"lng": -96.86248
+},
+"416": {
+"division": "SOUTHWEST",
+"lat": 32.75832,
+"lng": -96.88516
+},
+"417": {
+"division": "SOUTHWEST",
+"lat": 32.74205,
+"lng": -96.83801
+},
+"421": {
+"division": "SOUTHWEST",
+"lat": 32.78915,
+"lng": -96.8914
+},
+"422": {
+"division": "SOUTHWEST",
+"lat": 32.79286,
+"lng": -96.85697
+},
+"423": {
+"division": "SOUTHWEST",
+"lat": 32.78125,
+"lng": -96.84686
+},
+"424": {
+"division": "SOUTHWEST",
+"lat": 32.77669,
+"lng": -96.83188
+},
+"425": {
+"division": "SOUTHWEST",
+"lat": 32.77567,
+"lng": -96.91608
+},
+"426": {
+"division": "SOUTHWEST",
+"lat": 32.77343,
+"lng": -96.87422
+},
+"431": {
+"division": "SOUTHWEST",
+"lat": 32.74822,
+"lng": -96.9094
+},
+"432": {
+"division": "SOUTHWEST",
+"lat": 32.72846,
+"lng": -96.90861
+},
+"433": {
+"division": "SOUTHWEST",
+"lat": 32.70497,
+"lng": -96.95019
+},
+"434": {
+"division": "SOUTHWEST",
+"lat": 32.71321,
+"lng": -96.89687
+},
+"435": {
+"division": "SOUTHWEST",
+"lat": 32.66043,
+"lng": -96.96076
+},
+"436": {
+"division": "SOUTHWEST",
+"lat": 32.63754,
+"lng": -96.97117
+},
+"437": {
+"division": "SOUTHWEST",
+"lat": 32.68959,
+"lng": -96.89741
+},
+"441": {
+"division": "SOUTHWEST",
+"lat": 32.73992,
+"lng": -96.87827
+},
+"442": {
+"division": "SOUTHWEST",
+"lat": 32.74281,
+"lng": -96.86421
+},
+"443": {
+"division": "SOUTHWEST",
+"lat": 32.72169,
+"lng": -96.84461
+},
+"444": {
+"division": "SOUTHWEST",
+"lat": 32.73871,
+"lng": -96.85025
+},
+"445": {
+"division": "SOUTHWEST",
+"lat": 32.71178,
+"lng": -96.86269
+},
+"446": {
+"division": "SOUTHWEST",
+"lat": 32.73052,
+"lng": -96.83035
+},
+"447": {
+"division": "SOUTHWEST",
+"lat": 32.726,
+"lng": -96.86815
+},
+"451": {
+"division": "SOUTHWEST",
+"lat": 32.65307,
+"lng": -96.88631
+},
+"452": {
+"division": "SOUTHWEST",
+"lat": 32.66754,
+"lng": -96.88664
+},
+"453": {
+"division": "SOUTHWEST",
+"lat": 32.7086,
+"lng": -96.83513
+},
+"454": {
+"division": "SOUTHWEST",
+"lat": 32.69355,
+"lng": -96.84901
+},
+"455": {
+"division": "SOUTHWEST",
+"lat": 32.69851,
+"lng": -96.871
+},
+"456": {
+"division": "SOUTHWEST",
+"lat": 32.67641,
+"lng": -96.87162
+},
+"512": {
+"division": "NORTHWEST",
+"lat": 32.8231,
+"lng": -96.88425
+},
+"513": {
+"division": "NORTHWEST",
+"lat": 32.82688,
+"lng": -96.8517
+},
+"514": {
+"division": "NORTHWEST",
+"lat": 32.81431,
+"lng": -96.85024
+},
+"515": {
+"division": "NORTHWEST",
+"lat": 32.80815,
+"lng": -96.87829
+},
+"516": {
+"division": "NORTHWEST",
+"lat": 32.79715,
+"lng": -96.83398
+},
+"517": {
+"division": "NORTHWEST",
+"lat": 32.79742,
+"lng": -96.81977
+},
+"521": {
+"division": "NORTHWEST",
+"lat": 32.85285,
+"lng": -96.88813
+},
+"522": {
+"division": "NORTHWEST",
+"lat": 32.84228,
+"lng": -96.86778
+},
+"523": {
+"division": "NORTHWEST",
+"lat": 32.84361,
+"lng": -96.83958
+},
+"524": {
+"division": "NORTHWEST",
+"lat": 32.8646,
+"lng": -96.82323
+},
+"525": {
+"division": "NORTHWEST",
+"lat": 32.86267,
+"lng": -96.8419
+},
+"526": {
+"division": "NORTHWEST",
+"lat": 32.87418,
+"lng": -96.85534
+},
+"532": {
+"division": "NORTHWEST",
+"lat": 32.88711,
+"lng": -96.91399
+},
+"533": {
+"division": "NORTHWEST",
+"lat": 32.86812,
+"lng": -96.90765
+},
+"534": {
+"division": "NORTHWEST",
+"lat": 32.87883,
+"lng": -96.89075
+},
+"535": {
+"division": "NORTHWEST",
+"lat": 32.88347,
+"lng": -96.87667
+},
+"536": {
+"division": "NORTHWEST",
+"lat": 32.87113,
+"lng": -96.87022
+},
+"537": {
+"division": "NORTHWEST",
+"lat": 32.86172,
+"lng": -96.87221
+},
+"538": {
+"division": "NORTHWEST",
+"lat": 32.86113,
+"lng": -96.86397
+},
+"539": {
+"division": "NORTHWEST",
+"lat": 32.93931,
+"lng": -96.97708
+},
+"541": {
+"division": "NORTHWEST",
+"lat": 32.81494,
+"lng": -96.8307
+},
+"542": {
+"division": "NORTHWEST",
+"lat": 32.82676,
+"lng": -96.82981
+},
+"543": {
+"division": "NORTHWEST",
+"lat": 32.81347,
+"lng": -96.82055
+},
+"544": {
+"division": "NORTHWEST",
+"lat": 32.81786,
+"lng": -96.81076
+},
+"545": {
+"division": "NORTHWEST",
+"lat": 32.8079,
+"lng": -96.81402
+},
+"546": {
+"division": "NORTHWEST",
+"lat": 32.8136,
+"lng": -96.80816
+},
+"551": {
+"division": "NORTHWEST",
+"lat": 32.90229,
+"lng": -96.8941
+},
+"552": {
+"division": "NORTHWEST",
+"lat": 32.90261,
+"lng": -96.88298
+},
+"553": {
+"division": "NORTHWEST",
+"lat": 32.90897,
+"lng": -96.8671
+},
+"554": {
+"division": "NORTHWEST",
+"lat": 32.89413,
+"lng": -96.85302
+},
+"555": {
+"division": "NORTHWEST",
+"lat": 32.91613,
+"lng": -96.84634
+},
+"556": {
+"division": "NORTHWEST",
+"lat": 32.90403,
+"lng": -96.82856
+},
+"611": {
+"division": "NORTH CENTRAL",
+"lat": 32.99877,
+"lng": -96.86363
+},
+"612": {
+"division": "NORTH CENTRAL",
+"lat": 33.0049,
+"lng": -96.85026
+},
+"613": {
+"division": "NORTH CENTRAL",
+"lat": 32.99229,
+"lng": -96.842
+},
+"614": {
+"division": "NORTH CENTRAL",
+"lat": 33.00651,
+"lng": -96.83032
+},
+"621": {
+"division": "NORTH CENTRAL",
+"lat": 33.00427,
+"lng": -96.79513
+},
+"622": {
+"division": "NORTH CENTRAL",
+"lat": 32.98042,
+"lng": -96.81286
+},
+"623": {
+"division": "NORTH CENTRAL",
+"lat": 32.98859,
+"lng": -96.78005
+},
+"624": {
+"division": "NORTH CENTRAL",
+"lat": 32.96609,
+"lng": -96.78134
+},
+"625": {
+"division": "NORTH CENTRAL",
+"lat": 32.95676,
+"lng": -96.80146
+},
+"631": {
+"division": "NORTH CENTRAL",
+"lat": 32.94117,
+"lng": -96.81861
+},
+"632": {
+"division": "NORTH CENTRAL",
+"lat": 32.94518,
+"lng": -96.79194
+},
+"633": {
+"division": "NORTH CENTRAL",
+"lat": 32.9295,
+"lng": -96.81663
+},
+"634": {
+"division": "NORTH CENTRAL",
+"lat": 32.92953,
+"lng": -96.80763
+},
+"635": {
+"division": "NORTH CENTRAL",
+"lat": 32.93265,
+"lng": -96.78821
+},
+"641": {
+"division": "NORTH CENTRAL",
+"lat": 32.91309,
+"lng": -96.80507
+},
+"642": {
+"division": "NORTH CENTRAL",
+"lat": 32.91792,
+"lng": -96.77703
+},
+"643": {
+"division": "NORTH CENTRAL",
+"lat": 32.93226,
+"lng": -96.76525
+},
+"644": {
+"division": "NORTH CENTRAL",
+"lat": 32.93576,
+"lng": -96.7563
+},
+"651": {
+"division": "NORTH CENTRAL",
+"lat": 32.90304,
+"lng": -96.78638
+},
+"652": {
+"division": "NORTH CENTRAL",
+"lat": 32.87928,
+"lng": -96.8024
+},
+"653": {
+"division": "NORTH CENTRAL",
+"lat": 32.88837,
+"lng": -96.77787
+},
+"654": {
+"division": "NORTH CENTRAL",
+"lat": 32.86845,
+"lng": -96.77642
+},
+"711": {
+"division": "SOUTH CENTRAL",
+"lat": 32.74883,
+"lng": -96.80742
+},
+"712": {
+"division": "SOUTH CENTRAL",
+"lat": 32.74525,
+"lng": -96.79396
+},
+"713": {
+"division": "SOUTH CENTRAL",
+"lat": 32.7272,
+"lng": -96.81806
+},
+"714": {
+"division": "SOUTH CENTRAL",
+"lat": 32.72975,
+"lng": -96.80479
+},
+"715": {
+"division": "SOUTH CENTRAL",
+"lat": 32.73452,
+"lng": -96.77916
+},
+"716": {
+"division": "SOUTH CENTRAL",
+"lat": 32.72213,
+"lng": -96.78482
+},
+"717": {
+"division": "SOUTH CENTRAL",
+"lat": 32.72006,
+"lng": -96.76092
+},
+"721": {
+"division": "SOUTH CENTRAL",
+"lat": 32.714,
+"lng": -96.81898
+},
+"722": {
+"division": "SOUTH CENTRAL",
+"lat": 32.71458,
+"lng": -96.80459
+},
+"723": {
+"division": "SOUTH CENTRAL",
+"lat": 32.70079,
+"lng": -96.82831
+},
+"724": {
+"division": "SOUTH CENTRAL",
+"lat": 32.70022,
+"lng": -96.81536
+},
+"725": {
+"division": "SOUTH CENTRAL",
+"lat": 32.7067,
+"lng": -96.79932
+},
+"726": {
+"division": "SOUTH CENTRAL",
+"lat": 32.70084,
+"lng": -96.79032
+},
+"727": {
+"division": "SOUTH CENTRAL",
+"lat": 32.69029,
+"lng": -96.80131
+},
+"728": {
+"division": "SOUTH CENTRAL",
+"lat": 32.71224,
+"lng": -96.78376
+},
+"731": {
+"division": "SOUTH CENTRAL",
+"lat": 32.70994,
+"lng": -96.76851
+},
+"732": {
+"division": "SOUTH CENTRAL",
+"lat": 32.70895,
+"lng": -96.75303
+},
+"733": {
+"division": "SOUTH CENTRAL",
+"lat": 32.69928,
+"lng": -96.77249
+},
+"734": {
+"division": "SOUTH CENTRAL",
+"lat": 32.69426,
+"lng": -96.7836
+},
+"735": {
+"division": "SOUTH CENTRAL",
+"lat": 32.67952,
+"lng": -96.78221
+},
+"736": {
+"division": "SOUTH CENTRAL",
+"lat": 32.68376,
+"lng": -96.7306
+},
+"737": {
+"division": "SOUTH CENTRAL",
+"lat": 32.67512,
+"lng": -96.75642
+},
+"741": {
+"division": "SOUTH CENTRAL",
+"lat": 32.68948,
+"lng": -96.83789
+},
+"742": {
+"division": "SOUTH CENTRAL",
+"lat": 32.67104,
+"lng": -96.85117
+},
+"743": {
+"division": "SOUTH CENTRAL",
+"lat": 32.67351,
+"lng": -96.83113
+},
+"744": {
+"division": "SOUTH CENTRAL",
+"lat": 32.65523,
+"lng": -96.86499
+},
+"745": {
+"division": "SOUTH CENTRAL",
+"lat": 32.64331,
+"lng": -96.86847
+},
+"746": {
+"division": "SOUTH CENTRAL",
+"lat": 32.64766,
+"lng": -96.84865
+},
+"747": {
+"division": "SOUTH CENTRAL",
+"lat": 32.65628,
+"lng": -96.8295
+},
+"748": {
+"division": "SOUTH CENTRAL",
+"lat": 32.64358,
+"lng": -96.83063
+},
+"751": {
+"division": "SOUTH CENTRAL",
+"lat": 32.68389,
+"lng": -96.8143
+},
+"752": {
+"division": "SOUTH CENTRAL",
+"lat": 32.66125,
+"lng": -96.81443
+},
+"753": {
+"division": "SOUTH CENTRAL",
+"lat": 32.66406,
+"lng": -96.79715
+},
+"754": {
+"division": "SOUTH CENTRAL",
+"lat": 32.66432,
+"lng": -96.77294
+},
+"755": {
+"division": "SOUTH CENTRAL",
+"lat": 32.65573,
+"lng": -96.76624
+},
+"756": {
+"division": "SOUTH CENTRAL",
+"lat": 32.63972,
+"lng": -96.75499
+},
+"757": {
+"division": "SOUTH CENTRAL",
+"lat": 32.67331,
+"lng": -96.76913
+}
+}

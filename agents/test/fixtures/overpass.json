@@ -1,0 +1,89 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-08T07:10:35Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 368161178,
+  "lat": 32.8946820,
+  "lon": -96.8833010,
+  "tags": {
+    "addr:state": "TX",
+    "amenity": "fire_station",
+    "ele": "147",
+    "gnis:feature_id": "2427633",
+    "name": "Dallas Fire Station Number 30",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 368161181,
+  "lat": 32.8956685,
+  "lon": -96.7521178,
+  "tags": {
+    "addr:state": "TX",
+    "amenity": "fire_station",
+    "check_date": "2026-06-11",
+    "ele": "160",
+    "gnis:feature_id": "2427630",
+    "name": "Dallas Fire Station Number 28",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 368161187,
+  "lat": 32.9026240,
+  "lon": -96.8377460,
+  "tags": {
+    "addr:state": "TX",
+    "amenity": "fire_station",
+    "ele": "183",
+    "gnis:feature_id": "2427624",
+    "name": "Dallas Fire Station Number 2",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 368161191,
+  "lat": 32.7415680,
+  "lon": -96.8397540,
+  "tags": {
+    "addr:postcode": "75208",
+    "addr:state": "TX",
+    "amenity": "fire_station",
+    "check_date": "2026-05-03",
+    "ele": "168",
+    "gnis:feature_id": "2427620",
+    "name": "Dallas Fire Station Number 14",
+    "opening_hours": "24/7",
+    "operator": "City of Dallas",
+    "polling_station": "no",
+    "source": "USGS Geonames",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 368161341,
+  "lat": 32.7818800,
+  "lon": -96.8569620,
+  "tags": {
+    "addr:state": "TX",
+    "amenity": "fire_station",
+    "ele": "125",
+    "gnis:feature_id": "2427638",
+    "name": "Dallas Fire Station Number 36",
+    "source": "USGS Geonames"
+  }
+}
+
+  ]
+}
