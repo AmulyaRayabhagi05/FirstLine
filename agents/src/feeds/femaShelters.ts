@@ -32,6 +32,7 @@ export function normalizeFemaShelters(raw: any, now = new Date()): FeedEvent[] {
       time,
       h3_cells: [pointCell(lat, lng)],
       payload: {
+        id: String(p.shelter_id),
         shelter_id: p.shelter_id,
         name: p.shelter_name,
         address: [p.address, p.city, p.state, p.zip].filter(Boolean).join(', '),

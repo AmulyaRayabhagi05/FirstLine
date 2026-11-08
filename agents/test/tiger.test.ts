@@ -98,6 +98,24 @@ describe.skipIf(!dbUp)('Tiger SQL (local TimescaleDB)', () => {
     };
     expect(await insertFeedEvent(alert, pool)).toBe(1);
     expect(await insertFeedEvent(alert, pool)).toBe(0); // dedupe on re-poll
+    // Two different items in the same cell at the same time both land.
+    const h = (id: string) => ({ time: ago(1440), source: 'osm_facilities', kind: 'hospital', h3_cells: [otherCell], payload: { id } });
+    expect(await insertFeedEvent([h('way/1'), h('way/2'), h('way/1')], pool)).toBe(2);
+    // The 1-minute policy may have materialized before our inserts; refresh so the aggregates see them.
+    await pool.query(
+      `SELECT alter_job(job_id, scheduled => false) FROM timescaledb_information.jobs WHERE proc_name = 'policy_refresh_continuous_aggregate'`,
+    );
+    for (const view of ['cell_5m', 'person_last_contact']) {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await pool.query(`CALL refresh_continuous_aggregate('${view}', NULL, NULL)`);
+          break;
+        } catch (e) {
+          if (attempt > 20 || !/concurrent refresh/.test((e as Error).message)) throw e;
+          await new Promise((r) => setTimeout(r, 250));
+        }
+      }
+    }
   }, 120_000);
 
   afterAll(async () => {

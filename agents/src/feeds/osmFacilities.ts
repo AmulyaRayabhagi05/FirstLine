@@ -24,6 +24,7 @@ export function normalizeOsm(raw: any, now = new Date()): FeedEvent[] {
       time,
       h3_cells: [pointCell(lat, lng)],
       payload: {
+        id: `${el.type}/${el.id}`,
         osm_id: `${el.type}/${el.id}`,
         name: t.name ?? null,
         emergency: t.emergency ?? null,

@@ -54,12 +54,25 @@ WITH latest AS (
   FROM readings
   WHERE kind = 'home_temp_f' AND time > now() - interval '3 hours 5 minutes'
   ORDER BY person_id, time ASC
+), recent_contact AS (
+  -- Raw rows for the last 24 h: always fresh, even before the aggregate's next refresh.
+  SELECT person_id,
+         max(time) FILTER (WHERE result IN ('safe', 'needs_help'))  AS last_success,
+         count(*) FILTER (WHERE result IN ('no_answer', 'failed'))  AS failed_24h
+  FROM contact_events
+  WHERE time > now() - interval '24 hours'
+  GROUP BY person_id
+), older_contact AS (
+  -- Older history from the continuous aggregate.
+  SELECT person_id, max(last_success) AS last_success
+  FROM person_last_contact
+  WHERE bucket <= now() - interval '23 hours'
+  GROUP BY person_id
 ), contact AS (
   SELECT person_id,
-         max(last_success) AS last_success,
-         coalesce(sum(failed_attempts) FILTER (WHERE bucket > now() - interval '24 hours'), 0) AS failed_24h
-  FROM person_last_contact
-  GROUP BY person_id
+         greatest(r.last_success, o.last_success) AS last_success,
+         coalesce(r.failed_24h, 0)                AS failed_24h
+  FROM recent_contact r FULL JOIN older_contact o USING (person_id)
 ), alerts AS (
   SELECT DISTINCT ON (h3_cell) h3_cell, coalesce(payload->>'event', kind) AS event
   FROM feed_events
@@ -280,7 +293,7 @@ export const personTimeline: TigerTool<
     const parts: string[] = [];
     if (temps.length) {
       const latest = temps[0];
-      const cutoff = new Date(latest.time).getTime() - 3 * 3600_000;
+      const cutoff = new Date(latest.time).getTime() - 3 * 3600_000 - 5 * 60_000;
       const older = [...temps].reverse().find((r) => new Date(r.time).getTime() >= cutoff) ?? latest;
       const spanH = Math.max(1, Math.round((new Date(latest.time).getTime() - new Date(older.time).getTime()) / 3600_000));
       parts.push(

@@ -35,6 +35,7 @@ export function normalizeEmpower(raw: any, now = new Date()): FeedEvent[] {
       time,
       h3_cells: cells,
       payload: {
+        id: String(p.Zip_Code),
         zip: p.Zip_Code,
         county_fips: p.FIPS_Code,
         medicare_benes: toNum(p.Medicare_Benes),

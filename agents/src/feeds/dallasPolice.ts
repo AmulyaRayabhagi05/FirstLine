@@ -64,6 +64,7 @@ export function normalizeDallasPolice(raw: any[]): FeedEvent[] {
       time: chicagoToIso(r.date, r.time),
       h3_cells: [pointCell(loc.lat, loc.lng)],
       payload: {
+        id,
         incident_number: id,
         nature_of_call: nature,
         code: nature.split(' - ')[0]?.trim() || null,

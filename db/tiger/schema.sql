@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS feed_events (
 );
 SELECT create_hypertable('feed_events', by_range('time', INTERVAL '1 day'), if_not_exists => TRUE);
 -- Re-polling the same item is a no-op (inserts use ON CONFLICT DO NOTHING).
-CREATE UNIQUE INDEX IF NOT EXISTS feed_events_dedupe_idx ON feed_events (time, source, kind, h3_cell);
+-- payload->>'id' keeps two items in the same cell apart (e.g. two hospitals).
+DROP INDEX IF EXISTS feed_events_dedupe_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS feed_events_dedupe_v2_idx
+  ON feed_events (time, source, kind, h3_cell, (coalesce(payload->>'id', '')));
 CREATE INDEX IF NOT EXISTS feed_events_cell_time_idx ON feed_events (h3_cell, time DESC);
 
 -- ---------------------------------------------------------------------------

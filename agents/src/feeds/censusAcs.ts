@@ -49,6 +49,7 @@ export function normalizeCensus(acs: string[][], tracts: any, now = new Date()):
       time,
       h3_cells: cells,
       payload: {
+        id: geoid,
         geoid,
         name: r[ix('NAME')],
         total_pop: total,
