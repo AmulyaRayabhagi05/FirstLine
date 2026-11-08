@@ -8,12 +8,14 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test:nemotron": "node test-nemotron.cjs",
-    "test:integration": "tsx test/integration.ts"
+    "test:integration": "tsx test/integration.ts",
+    "mcp": "tsx src/mcp/server.ts"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "h3-js": "^4.5.0",
     "mqtt": "^5.16.1",
     "pg": "^8.23.1",
