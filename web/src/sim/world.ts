@@ -9,7 +9,7 @@ export const CITY_R = 110; // radius of the interactive city: room for ~2,300 ho
 export const W = 2 * (CITY_R + 12); // size of the detailed city ground, in world units
 export const HALF = W / 2;
 export const FAR = 210; // the outer city runs to here, fading into haze
-export const DANGER_W = 13; // flood danger band half-width around the river
+export const DANGER_W = 6; // flood danger band half-width around the river: the riverbank rows only (13 swept in houses ~2.6 km away)
 
 let seed = 20261108;
 export function rnd(): number {
