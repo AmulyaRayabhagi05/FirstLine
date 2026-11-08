@@ -99,8 +99,11 @@ instantly, call-takers triage perfectly, and non-urgent calls go to 311 without 
 
 ### Porchlight
 
-- **Triage**: 1 min; 15% of real emergencies are under-rated to P2. Emergencies that need
-  professionals (CO, falls, dialysis) also go to EMS straight away.
+- **Triage**: 1 min; 15% of real emergencies are misread as non-urgent (P3: rings 1 and 2 only,
+  no EMS call or escalation; the silent-signal sweep can still catch them later). 10% of non-urgent
+  requests are over-rated to P2. Emergencies that need professionals (CO, falls, dialysis) also go
+  to EMS straight away. By default P3 requests are offered to neighbors at once
+  (`p3DelayMin: 0`); see Sensitivity for a 60-minute hold.
 - **Dispatch**: offers go one at a time to the person's ring 1 (closest first), ring 2, then
   the 6 nearest able adults around them (ring 3). Each helper answers per their profile:
   accept (mean 50%), decline (mean 20%), or no answer (10-min timeout, per the contract). Answer
@@ -132,33 +135,47 @@ Mean across seeds, min to max in brackets.
 | Critical reached within 30 min | 4% (2-6) | 30% (25-33) |
 | Critical reached within 60 min | 13% (10-16) | 62% (58-67) |
 | Critical reached within 120 min | 25% (21-32) | 80% (75-86) |
-| Critical reached by 11 am | 43% (39-51) | 87% (83-91) |
-| Silent critical reached within 120 min | 11% (5-15) | 61% (53-73) |
+| Critical reached by 11 am | 43% (39-51) | 87% (83-90) |
+| Silent critical reached within 120 min | 11% (5-15) | 61% (53-75) |
 | Silent critical reached by 11 am | 24% (20-28) | 74% (66-81) |
 | Median minutes, onset to someone at the door | 101 | 41 |
 
 The cost per storm in Porchlight: about 10,700 automated check-in calls, 930 neighbor checks
 (about 1 in 7 finds a critical case), 2,400 helper offers (940 accepted, 1,100 timed out).
 
-Sensitivity, critical reached within 60 min (calls only -> Porchlight):
+Sensitivity (calls only -> Porchlight, same 5 storms, one change per row):
 
-| Change | Result |
-|---|---|
-| Defaults | 13% -> 62% |
-| Neighbors accept half as often | 13% -> 47% |
-| 2 EMS units | 13% -> 62% |
-| 6 EMS units | 15% -> 62% |
-| No third-party 911 calls | 13% -> 62% |
-| Triage misses 40% of emergencies | 13% -> 62% |
+| Change | Reached within 60 min | Reached by 11 am |
+|---|---|---|
+| Defaults | 13% -> 62% | 43% -> 87% |
+| Neighbors accept half as often | 13% -> 47% | 43% -> 80% |
+| 2 EMS units instead of 3 | 13% -> 62% | 40% -> 87% |
+| 6 EMS units instead of 3 | 15% -> 62% | 48% -> 88% |
+| No third-party 911 calls | 13% -> 62% | 42% -> 86% |
+| Triage misses 40% of emergencies | 13% -> 62% | 43% -> 87% |
+| Non-urgent (P3) requests wait 60 min | 13% -> 60% | 43% -> 87% |
+| P3 waits 60 min + triage misses 40% | 13% -> 54% | 43% -> 87% |
+
+Every option is wired into the model; a test (`every sensitivity knob reaches the model`)
+checks this. Some rows barely move Porchlight's number, for these reasons:
+
+- **EMS units and third-party 911 calls.** Both feed only the EMS queue. In Porchlight runs a
+  neighbor or relative gets there first in 99% of reached cases (EMS first in 6 of 888 over 5
+  storms), so EMS capacity changes who EMS reaches but rarely the first arrival. It does move the
+  calls-only baseline (13% to 15% within 60 min, 40% to 48% by morning), because there EMS is the
+  main responder. At 35 min of driving plus queueing, EMS seldom arrives within an hour of onset.
+- **Triage misses.** A missed emergency is read as non-urgent (P3: supplies or a ride): no ring 3,
+  no parallel EMS call, no escalation. With the default policy every request, P3 included, is
+  offered to neighbors at once. In that case the person's own ring 1 and 2 usually cover it, and
+  helpers are rarely all busy at the same time, so priority hardly matters (even a 100% miss rate
+  costs about 1 point). Triage starts to matter as soon as the dispatcher holds back non-urgent
+  requests: with a 60-minute P3 hold, raising misses from 15% to 40% drops the 60-minute rate from
+  60% to 54%. Which policy the real dispatch agent uses decides how much triage accuracy matters.
 
 Read this honestly:
 
 - The gain comes from capacity and proximity: thousands of neighbors a few hundred meters away
   versus a few EMS units on icy roads. It is most sensitive to how often neighbors say yes.
-- EMS capacity barely moves the 60-minute number because, at 35 min of driving plus queueing, EMS
-  rarely arrives within an hour of onset anyway.
-- Triage misses do not hurt much in this model because P2 requests are still dispatched to
-  neighbors right away; they matter more for the order of EMS escalation.
 - The population, the storm, who becomes critical, and helper behavior are all synthetic and set by
   the rules above. The model has no blocked roads, no helpers getting hurt, and no people refusing
   a visit.

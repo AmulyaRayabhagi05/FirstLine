@@ -58,7 +58,7 @@ console.log(
     `(${ps("accepts")} accepted, ${ps("declines")} declined, ${ps("timeouts")} timed out), ${ps("escalations")} escalated to EMS`,
 );
 
-console.log("\nSensitivity (critical reached within 60 min, calls-only -> porchlight):");
+console.log("\nSensitivity (calls-only -> porchlight; same storms, one change per row):");
 const sens: [string, Partial<MeasureParams>][] = [
   ["defaults", {}],
   ["neighbors accept half as often", { acceptScale: 0.5 }],
@@ -66,11 +66,15 @@ const sens: [string, Partial<MeasureParams>][] = [
   ["6 EMS units instead of 3", { proUnits: 6 }],
   ["no third-party 911 calls", { thirdPartyCallP: 0 }],
   ["triage misses 40% of emergencies", { triageMissP: 0.4 }],
+  ["non-urgent (P3) requests wait 60 min", { p3DelayMin: 60 }],
+  ["P3 waits 60 min + triage misses 40%", { p3DelayMin: 60, triageMissP: 0.4 }],
 ];
-const sensOut: Record<string, string> = {};
+const sensOut: Record<string, { within60: string; byMorning: string }> = {};
 for (const [label, params] of sens) {
   const rs = label === "defaults" ? main : run(params);
-  sensOut[label] = `${fmt(rs.map((c) => pct(c.baseline.stats.within60, c.baseline.stats.critical)))} -> ${fmt(rs.map((c) => pct(c.porchlight.stats.within60, c.porchlight.stats.critical)))}`;
+  const cell = (k: "within60" | "reachedByEnd") =>
+    `${fmt(rs.map((c) => pct(c.baseline.stats[k], c.baseline.stats.critical)))} -> ${fmt(rs.map((c) => pct(c.porchlight.stats[k], c.porchlight.stats.critical)))}`;
+  sensOut[label] = { within60: cell("within60"), byMorning: cell("reachedByEnd") };
 }
 console.table(sensOut);
 

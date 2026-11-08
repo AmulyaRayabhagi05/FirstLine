@@ -177,4 +177,17 @@ describe("measure", () => {
     expect(c.porchlight.stats.critical).toBe(c.baseline.stats.critical);
     expect(c.porchlight.stats.within60).toBeGreaterThan(c.baseline.stats.within60);
   });
+
+  it("every sensitivity knob reaches the model", () => {
+    const base = compare(world, storm);
+    const key = (r: ReturnType<typeof compare>, s: "baseline" | "porchlight") => JSON.stringify(r[s].cases.map((c) => c.reachedAt));
+    // EMS capacity and third-party calls change who EMS reaches (visible in the baseline).
+    expect(key(compare(world, storm, { proUnits: 0 }), "baseline")).not.toEqual(key(base, "baseline"));
+    expect(key(compare(world, storm, { thirdPartyCallP: 0 }), "baseline")).not.toEqual(key(base, "baseline"));
+    // Triage misses change Porchlight outcomes once non-urgent requests are not dispatched at once.
+    const slowP3 = compare(world, storm, { p3DelayMin: 60, triageMissP: 0 });
+    const slowP3Miss = compare(world, storm, { p3DelayMin: 60, triageMissP: 1 });
+    expect(slowP3Miss.porchlight.stats.within60).toBeLessThan(slowP3.porchlight.stats.within60);
+    expect(key(compare(world, storm, { acceptScale: 0.5 }), "porchlight")).not.toEqual(key(base, "porchlight"));
+  });
 });

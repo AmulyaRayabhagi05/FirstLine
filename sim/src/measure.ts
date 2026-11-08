@@ -25,11 +25,13 @@ export interface MeasureParams {
   informalCheckMeanMin: number;
   /** Minimum minutes between automated calls to the same person. */
   recallMin: number;
-  /** Porchlight triage latency and how often it under-rates a real emergency (P1 -> P2). */
+  /** Porchlight triage latency and how often it reads a real emergency as non-urgent (P1 -> P3). */
   triageMin: number;
   triageMissP: number;
   /** Assignment offer timeout (contract: 10 minutes). */
   offerTimeoutMin: number;
+  /** Minutes a P3 (non-urgent) request waits before its first offer. 0 = dispatched at once. */
+  p3DelayMin: number;
   /** Minutes a helper needs before leaving home. */
   helperPrepMin: number;
   /** km/h on icy streets: walking vs with a truck. */
@@ -63,6 +65,7 @@ export const DEFAULT_PARAMS: MeasureParams = {
   recallMin: 60,
   triageMin: 1,
   triageMissP: 0.15,
+  p3DelayMin: 0,
   offerTimeoutMin: 10,
   helperPrepMin: 5,
   walkKmh: 3,
@@ -275,7 +278,7 @@ export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEF
   const byCell = new Map<string, Person[]>();
   for (const x of people) byCell.set(x.h3Cell, [...(byCell.get(x.h3Cell) ?? []), x]);
 
-  const candidatesFor = (target: Person): number[] => {
+  const candidatesFor = (target: Person, prio: number): number[] => {
     const hhIds = new Set((household.get(target.householdId) ?? []).map((m) => m.id));
     const out: number[] = [];
     const add = (id: number) => {
@@ -285,6 +288,8 @@ export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEF
     const owners = [target, ...(household.get(target.householdId) ?? [])];
     for (const ring of [1, 2]) for (const o of owners) for (const m of net.get(o.id) ?? []) if (m.ring === ring) add(m.memberId);
     // Ring 3: nearest able adults in the surrounding cells (dispatch agent widens the search).
+    // Only for P1/P2: a P3 (supplies, ride) request stays within the person's own net.
+    if (prio > 2) return out;
     const near = gridDisk(target.h3Cell, 1)
       .flatMap((c) => byCell.get(c) ?? [])
       .filter((x) => x.age >= 18 && x.age < 75 && x.mobility === "ok" && !x.demoRole)
@@ -306,10 +311,14 @@ export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEF
   const openRequest = (personId: number, prio: number, t: number, key: string, isCheck: boolean) => {
     const existing = activeFor.get(personId);
     if (existing && existing.state !== "done" && existing.state !== "exhausted") {
-      existing.prio = Math.min(existing.prio, prio);
+      if (prio < existing.prio) {
+        existing.prio = prio;
+        // Upgraded to urgent: widen to ring 3 (keeps offers already made).
+        for (const id of candidatesFor(byId(personId), prio)) if (!existing.candidates.includes(id)) existing.candidates.push(id);
+      }
       return;
     }
-    const r: Request = { personId, key, prio, createdAt: t, candidates: candidatesFor(byId(personId)), idx: 0, state: "dispatching", isCheck };
+    const r: Request = { personId, key, prio, createdAt: t, candidates: candidatesFor(byId(personId), prio), idx: 0, state: "dispatching", isCheck };
     requests.push(r);
     activeFor.set(personId, r);
   };
@@ -364,7 +373,9 @@ export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEF
         lastContact.set(e.personId, t);
         const crit = ctx.critByPerson.get(e.aboutPersonId);
         const isEmergency = crit !== undefined && crit.onset <= t;
-        const prio = isEmergency ? (triageRng.chance(p.triageMissP) ? 2 : 1) : triageRng.chance(0.1) ? 2 : 3;
+        // A triage miss reads a real emergency as non-urgent (P3: supplies / ride): no ring 3,
+        // no parallel EMS call, no escalation. Non-emergencies are over-rated to P2 10% of the time.
+        const prio = isEmergency ? (triageRng.chance(p.triageMissP) ? 3 : 1) : triageRng.chance(0.1) ? 2 : 3;
         pendingTriage.push({ at: t + p.triageMin, personId: e.aboutPersonId, prio, key: `sos:${e.clientId}`, needsPro: isEmergency && crit!.needsPro && prio === 1 });
       }
     }
@@ -427,6 +438,7 @@ export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEF
     live.sort((a, b) => a.prio - b.prio || a.createdAt - b.createdAt);
     for (const r of live) {
       if (r.state === "dispatching" && !r.pending) {
+        if (r.prio === 3 && t < r.createdAt + p.p3DelayMin) continue;
         offerNext(r, t);
         continue;
       }
