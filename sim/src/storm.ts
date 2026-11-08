@@ -30,7 +30,7 @@ export interface CriticalCase {
 
 export type StormEvent =
   | { t: number; kind: "signal"; personId: number; signal: "power_out" | "phone_offline" | "low_temp"; value: number }
-  | { t: number; kind: "reading"; personId: number; h3Cell: string; reading: "indoor_temp_f"; value: number }
+  | { t: number; kind: "reading"; personId: number; h3Cell: string; reading: "home_temp_f"; value: number }
   | { t: number; kind: "check_in"; clientId: string; personId: number; checkKind: "app" | "sms" | "voice"; result: "safe" | "needs_help"; note: string }
   | {
       t: number;
@@ -210,7 +210,7 @@ export function generateStorm(world: World, seed = world.seed): Storm {
     // Smart thermostat readings every 30 min and a low_temp signal when it crosses 55 °F.
     if (h.hasTempSensor) {
       for (let t = 0; t <= STORM_MINUTES; t += 30) {
-        events.push({ t, kind: "reading", personId: p.id, h3Cell: p.h3Cell, reading: "indoor_temp_f", value: Math.round(indoorAt(h.id, t) * 10) / 10 });
+        events.push({ t, kind: "reading", personId: p.id, h3Cell: p.h3Cell, reading: "home_temp_f", value: Math.round(indoorAt(h.id, t) * 10) / 10 });
       }
       const low = firstBelow(h.id, LOW_TEMP_SIGNAL_F);
       if (low !== undefined) events.push({ t: low, kind: "signal", personId: p.id, signal: "low_temp", value: Math.round(indoorAt(h.id, low) * 10) / 10 });
