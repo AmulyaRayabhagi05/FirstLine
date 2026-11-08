@@ -14,6 +14,7 @@ export interface MapState {
   showZone: boolean;
   showNames: boolean;
   statuses: Status[];
+  live: boolean; // true once the live SpacetimeDB feed is connected; the simulated clock stops driving statuses
   version: number; // bumps when any status changes
   cam: { x: number; z: number; theta: number }; // for the minimap
   setT: (t: number) => void;
@@ -45,11 +46,13 @@ export const useMap = create<MapState>((set, get) => ({
   showZone: true,
   showNames: true,
   statuses: computeStatuses(0),
+  live: false,
   version: 0,
   cam: { x: 0, z: 0, theta: 0.75 },
   panTo: null,
   setT: (t) => {
     const T = Math.max(0, Math.min(8, t));
+    if (get().live) return set({ T }); // live statuses come from SpacetimeDB, not the replay clock
     const prev = get().statuses;
     const next = computeStatuses(T);
     const changed = next.some((s, i) => s !== prev[i]);

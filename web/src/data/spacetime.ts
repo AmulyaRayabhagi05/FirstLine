@@ -29,4 +29,4 @@ export function toMapStatus(person: PersonRow, activeAssignment?: AssignmentRow 
   return person.priority === 'P2' ? 'p2' : 'unknown';
 }
 
-export const DATA_MODE: 'simulated' | 'live' = 'simulated';
+export const DATA_MODE: 'simulated' | 'live' = import.meta.env.VITE_DATA_MODE === 'live' ? 'live' : 'simulated';
