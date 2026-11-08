@@ -3,7 +3,7 @@
 
 import twilio from "twilio";
 import { z } from "zod";
-import type { ChannelPerson, ChannelStore } from "./store.js";
+import { toE164, type ChannelPerson, type ChannelStore } from "./store.js";
 import { xmlEscape, type MessagingTool, type TwilioConfig, type TwilioLike } from "./twilio.js";
 import { spokenGuidance } from "../knowledge/harness.js";
 
@@ -115,7 +115,7 @@ export async function placeCheckInCall(deps: VoiceDeps, person: ChannelPerson): 
   if (!cfg.fromNumber) throw new Error("TWILIO_FROM_NUMBER is not set");
   if (!cfg.publicUrl) throw new Error("PUBLIC_BASE_URL is not set (Twilio must reach /voice/*)");
   const call = await client.calls.create({
-    to: person.phone,
+    to: toE164(person.phone),
     from: cfg.fromNumber,
     twiml: checkInTwiml(cfg, person),
     statusCallback: `${cfg.publicUrl}/voice/status?personId=${person.id}`,

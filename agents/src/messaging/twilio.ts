@@ -3,6 +3,7 @@
 
 import twilio from "twilio";
 import { z } from "zod";
+import { toE164 } from "./store.js";
 
 /** The two Twilio REST calls messaging makes. The real `twilio()` client satisfies this. */
 export interface TwilioLike {
@@ -113,7 +114,7 @@ export function makeSendSmsTool(
 
 export async function sendSms(client: TwilioLike, cfg: TwilioConfig, to: string, body: string) {
   if (!cfg.fromNumber) throw new Error("TWILIO_FROM_NUMBER is not set");
-  const msg = await client.messages.create({ to, from: cfg.fromNumber, body });
+  const msg = await client.messages.create({ to: toE164(to), from: cfg.fromNumber, body });
   return { sid: msg.sid };
 }
 
