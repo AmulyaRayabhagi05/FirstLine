@@ -31,7 +31,7 @@ const PERSON_PRIORITY = ['P1', 'P2', 'P3', 'safe', 'unknown'];
 const SOS_CHANNEL = ['app', 'sms', 'voice', 'mesh'];
 const CHECK_IN_KIND = ['app', 'voice', 'sms', 'neighbor_visit', 'mesh'];
 const CHECK_IN_RESULT = ['safe', 'needs_help', 'no_answer'];
-const SIGNAL_KIND = ['phone_offline', 'power_out', 'low_temp', 'no_motion'];
+const SIGNAL_KIND = ['phone_offline', 'power_out', 'low_temp', 'no_motion', 'geofence_entered'];
 const TRIAGE_NEEDS = ['neighbor', 'professional'];
 const TRIAGE_PRIORITY = ['P1', 'P2', 'P3'];
 const AGENTS = ['triage', 'dispatch', 'silent_signal', 'reports'];
@@ -795,6 +795,24 @@ export const report_signal = spacetimedb.reducer(
     if (!Number.isFinite(value)) fail('value must be a finite number');
     requireActFor(ctx, getPerson(ctx, person_id), 'report signals for them');
     ctx.db.signal.insert({ id: 0n, person_id, kind, value, created_at: ctx.timestamp });
+  }
+);
+
+// Geofence: a person's location moves them into an H3 cell. If that cell carries an alert
+// (set_cell_alert), log a geofence_entered signal once per entry. Staying in the cell, or
+// moving between unflagged cells, logs nothing.
+export const update_location = spacetimedb.reducer(
+  { person_id: t.u64(), lat: t.f64(), lng: t.f64() },
+  (ctx, { person_id, lat, lng }) => {
+    const p = getPerson(ctx, person_id);
+    requireActFor(ctx, p, 'update their location');
+    const h3 = cellFor(lat, lng);
+    const previous = p.h3_cell;
+    ctx.db.person.id.update({ ...p, last_lat: lat, last_lng: lng, h3_cell: h3 });
+    const cell = ctx.db.hex_cell.h3_cell.find(h3);
+    if (h3 !== previous && cell && cell.alert_level !== '') {
+      ctx.db.signal.insert({ id: 0n, person_id, kind: 'geofence_entered', value: 1, created_at: ctx.timestamp });
+    }
   }
 );
 
