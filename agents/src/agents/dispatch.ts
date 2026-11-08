@@ -172,7 +172,20 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
     event,
   ].join("\n");
 
-  const result = await runAgentLoop({ agent: "dispatch", subject, deps, instructions: INSTRUCTIONS, task, tools, tier: "plan" });
+  const required = [
+    ...(mustEscalate(triage) && !escalated ? ["escalate"] : []),
+    ...((await candidates()).length > 0 ? ["assign_helper"] : []),
+  ];
+  const result = await runAgentLoop({
+    agent: "dispatch",
+    subject,
+    deps,
+    instructions: INSTRUCTIONS,
+    task,
+    tools,
+    tier: "plan",
+    requiredTools: required,
+  });
   let source: DispatchOutcome["source"] = "model";
 
   // Guards: the plan must end with professionals called when needed and someone offered.

@@ -136,6 +136,7 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
     instructions: INSTRUCTIONS,
     task: `Write the briefing for res-8 cell ${stats.h3Cell8}.`,
     tools,
+    requiredTools: ["save_incident_report"],
   });
 
   if (!saved) {

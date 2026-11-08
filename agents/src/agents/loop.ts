@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import type { ChatMessage, LlmClient } from "../llm/client.js";
-import { jsonCall } from "../llm/json.js";
+import { BadJsonError, jsonCall } from "../llm/json.js";
 import type { AgentName, AgentStepKind, PorchlightStore } from "../store/types.js";
 import type { Services } from "./services.js";
 
@@ -32,14 +32,51 @@ export const confidence = z.preprocess(
   z.number().min(0).max(1),
 );
 
-const stepSchema = z.object({
-  thought: z.string().default(""),
-  tool: z.string().nullish(),
-  args: z.record(z.string(), z.unknown()).nullish(),
-  done: z.boolean().nullish(),
-  decision: z.string().nullish(),
-  confidence: confidence.nullish(),
-});
+const asText = (v: unknown) => (v == null ? v : typeof v === "string" ? v : JSON.stringify(v));
+
+/** Normalize the many shapes a small model uses for one step before validating. */
+function normalizeStep(v: unknown): unknown {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v;
+  const o = v as Record<string, unknown>;
+  const pick = (...keys: string[]) => keys.map((k) => o[k]).find((x) => x !== undefined);
+  let tool = pick("tool", "tool_name", "action", "function", "name");
+  if (tool && typeof tool === "object") tool = (tool as Record<string, unknown>).name;
+  if (typeof tool === "string") {
+    tool = tool.trim().replace(/\(\)$/, "").toLowerCase();
+    if (["", "null", "none", "n/a"].includes(tool as string)) tool = null;
+  }
+  let args = pick("args", "arguments", "parameters", "input", "tool_args");
+  if (typeof args === "string") {
+    try {
+      args = JSON.parse(args);
+    } catch {
+      args = {};
+    }
+  }
+  if (!args || typeof args !== "object" || Array.isArray(args)) args = {};
+  let done = pick("done", "finished", "final");
+  if (typeof done === "string") done = done.trim().toLowerCase() === "true";
+  return {
+    thought: asText(pick("thought", "thoughts", "reasoning", "plan")) ?? "",
+    tool: typeof tool === "string" ? tool : null,
+    args,
+    done: typeof done === "boolean" ? done : null,
+    decisionValue: pick("decision", "final_answer", "answer", "result"),
+    confidence: pick("confidence"),
+  };
+}
+
+const stepSchema = z.preprocess(
+  normalizeStep,
+  z.object({
+    thought: z.string(),
+    tool: z.string().nullish(),
+    args: z.record(z.string(), z.unknown()),
+    done: z.boolean().nullish(),
+    decisionValue: z.unknown(),
+    confidence: confidence.nullish().catch(undefined),
+  }),
+);
 
 export interface ToolCallRecord {
   tool: string;
@@ -51,6 +88,8 @@ export interface ToolCallRecord {
 export interface LoopResult {
   finished: boolean;
   decision?: string;
+  /** The model's final answer as it sent it (may be an object), for agents to salvage. */
+  decisionValue?: unknown;
   confidence?: number;
   calls: ToolCallRecord[];
   model?: string;
@@ -68,6 +107,8 @@ export interface LoopArgs {
   tools: Tool[];
   maxSteps?: number;
   tier?: "fast" | "plan";
+  /** Tools that must succeed before done=true is accepted; the model is reminded otherwise. */
+  requiredTools?: string[];
 }
 
 export const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -102,7 +143,7 @@ export function systemPrompt(instructions: string, tools: Tool[]): string {
     "",
     "Reply with ONLY one JSON object, no prose, in this shape:",
     '{"thought": "<one short sentence>", "tool": "<tool name or null>", "args": {<tool args>}, "done": <true|false>, "decision": "<final decision, when done>", "confidence": <0..1>}',
-    "Call one tool per reply. You will get the tool's result, then reply again. Set done=true only when your work is finished.",
+    "Call one tool per reply. You will get the tool's result, then reply again. Results are saved ONLY by calling the save tool; \"decision\" is just a short sentence. Set done=true only when your work is finished.",
   ].join("\n");
 }
 
@@ -116,6 +157,7 @@ export async function runAgentLoop(a: LoopArgs): Promise<LoopResult> {
   const calls: ToolCallRecord[] = [];
   const maxSteps = a.maxSteps ?? 6;
   let model: string | undefined;
+  let nudges = 0;
 
   for (let step = 0; step < maxSteps; step++) {
     let reply: z.infer<typeof stepSchema>;
@@ -125,7 +167,8 @@ export async function runAgentLoop(a: LoopArgs): Promise<LoopResult> {
       model = res.model;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      await log("thought", `Model unavailable or unusable (${truncate(msg, 120)}); falling back to rules.`);
+      const raw = err instanceof BadJsonError ? ` Raw reply: ${truncate(err.raw.replace(/\s+/g, " "), 200)}` : "";
+      await log("thought", `Model unavailable or unusable (${truncate(msg, 160)}); falling back to rules.${raw}`);
       return { finished: false, calls, model, error: msg };
     }
     messages.push({ role: "assistant", content: JSON.stringify(reply) });
@@ -158,10 +201,20 @@ export async function runAgentLoop(a: LoopArgs): Promise<LoopResult> {
       observation = `Result of ${reply.tool}: ${truncate(resultText, 2500)}`;
     }
 
+    const missing = (a.requiredTools ?? []).filter((t) => !called({ finished: false, calls }, t));
+    if (reply.done && missing.length > 0 && nudges < 2) {
+      nudges++;
+      await log("thought", `Not finished: ${missing.join(", ")} has not been called yet.`);
+      messages.push({
+        role: "user",
+        content: `${observation ? `${observation}\n` : ""}You set done=true but did not call ${missing.join(", ")}. Call ${missing[0]} now with your decision as its args.`,
+      });
+      continue;
+    }
     if (reply.done) {
-      const decision = reply.decision || reply.thought || "done";
+      const decision = asText(reply.decisionValue) || reply.thought || "done";
       await log("decision", decision, reply.confidence ?? undefined);
-      return { finished: true, decision, confidence: reply.confidence ?? undefined, calls, model };
+      return { finished: true, decision, decisionValue: reply.decisionValue, confidence: reply.confidence ?? undefined, calls, model };
     }
     messages.push({
       role: "user",
