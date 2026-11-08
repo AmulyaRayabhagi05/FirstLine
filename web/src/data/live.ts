@@ -1,9 +1,10 @@
 // Live connection from the dashboard to the FirstLine SpacetimeDB module. Everything the map
 // shows (who lives where, their status, the agents' reasoning, incident reports) comes from here.
 //
-// The connecting identity must be staff to see rows (ops_* views are empty otherwise). Its
-// identity is shown in the HUD and logged to the console; the module owner grants it once:
-//   spacetime call --server local firstline add_staff '"<identity>"'
+// The connecting identity must be staff or a read-only viewer to see rows (the views are empty
+// otherwise). The public build ships a viewer token (VITE_SPACETIME_TOKEN); without one, the
+// identity is shown in the HUD and the module owner grants it once:
+//   spacetime call --server local firstline add_viewer '"<identity>"'
 
 import { DbConnection } from '../module_bindings';
 import { DALLAS_NEIGHBORHOODS, homes, project, type Status } from '../sim/world';
@@ -14,8 +15,8 @@ export const SPACETIME_HOST: string = (import.meta.env.VITE_SPACETIME_HOST as st
 export const SPACETIME_DB: string = (import.meta.env.VITE_SPACETIME_DB as string) || 'firstline';
 
 const TOKEN_KEY = `firstline.spacetime.token.${SPACETIME_DB}`;
-/** Optional pinned token so a dev dashboard keeps one staff identity across ports and browsers.
- *  Local demos only: anything in VITE_* ships in the bundle, so never set it on a public build. */
+/** Optional pinned token: one identity across ports and browsers. Anything in VITE_* ships in the
+ *  bundle, so a public build may only pin a read-only VIEWER token, never a staff one. */
 const PINNED_TOKEN = (import.meta.env.VITE_SPACETIME_TOKEN as string | undefined) || undefined;
 /** Signals that mean a person is exposed to the event, so silence from them is a risk. */
 const EXPOSURE = new Set(['power_out', 'phone_offline', 'low_temp', 'geofence_entered']);
@@ -81,7 +82,7 @@ function place(householdId: string, lat: number, lng: number): number | null {
 
 function snapshot(conn: DbConnection) {
   const db = conn.db;
-  const people = [...db.opsPerson.iter()];
+  const people = [...db.dashPerson.iter()];
   const households = [...db.opsHousehold.iter()];
   const sosAll = [...db.opsSosEvent.iter()];
   const assignments = [...db.opsAssignment.iter()];
@@ -342,7 +343,7 @@ export function startLive() {
         .subscriptionBuilder()
         .onApplied(() => {
           const db = conn.db;
-          for (const t of [db.opsPerson, db.opsHousehold, db.opsSosEvent, db.opsAssignment, db.opsCheckIn, db.opsSignal, db.opsAgentStep, db.opsIncidentReport, db.opsSafetyNet, db.opsTriage, db.opsKeyPass, db.hexCell] as const) {
+          for (const t of [db.dashPerson, db.opsHousehold, db.opsSosEvent, db.opsAssignment, db.opsCheckIn, db.opsSignal, db.opsAgentStep, db.opsIncidentReport, db.opsSafetyNet, db.opsTriage, db.opsKeyPass, db.hexCell] as const) {
             const table = t as unknown as { onInsert(cb: () => void): void; onDelete(cb: () => void): void; onUpdate?: (cb: () => void) => void };
             table.onInsert(refresh);
             table.onDelete(refresh);
@@ -352,12 +353,12 @@ export function startLive() {
           const people = useMap.getState().liveInfo.people;
           useMap.getState().setLiveInfo({
             state: 'subscribed',
-            message: people === 0 ? `Connected, but this dashboard is not staff yet. Grant 0x${hex}` : 'Live',
+            message: people === 0 ? `Connected, but this dashboard cannot read yet. Grant 0x${hex} (add_viewer)` : 'Live',
           });
         })
         .onError((ctx) => useMap.getState().setLiveInfo({ state: 'error', message: `Subscription failed: ${String((ctx as { event?: unknown }).event ?? 'unknown')}` }))
         .subscribe([
-          'SELECT * FROM ops_person',
+          'SELECT * FROM dash_person',
           'SELECT * FROM ops_household',
           'SELECT * FROM ops_sos_event',
           'SELECT * FROM ops_assignment',

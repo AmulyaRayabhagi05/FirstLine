@@ -58,6 +58,13 @@ tables (`SELECT * FROM ops_person`):
 Views have no client-side indexes: look rows up with `iter()`, not `.id.find()`.
 `staff` table: `identity` (PK), `added_at`.
 
+Viewer role (addition, public dashboard): `viewer` table (`identity` PK, `added_at`). A viewer may
+read `dash_person` and every `ops_*` view except `ops_person` and `ops_audit_log`, and may call no
+reducer (`register_person` refuses viewers, so a viewer never owns people). `dash_person` returns
+`person` rows with `phone` blanked and `identity` empty, for staff and viewers; the web dashboard
+reads people from it. Owner-only `add_viewer(identity)` / `remove_viewer(identity)`. The viewer's
+token ships in the public web bundle (`VITE_SPACETIME_TOKEN`); rotate it by removing the identity.
+
 ## Reducers
 
 Who may call what: "self" = the identity that registered the person (`person.identity`),
