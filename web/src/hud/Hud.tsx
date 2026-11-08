@@ -202,6 +202,9 @@ export function LiveBar() {
           <span>{info.households} households</span>
           <span>{info.openSos} open SOS</span>
           <span>{info.alertedCells} alerted cells</span>
+          <span>{info.triaged} triaged</span>
+          <span>{info.agentSteps} agent steps</span>
+          {info.activeKeyPasses > 0 && <span>{info.activeKeyPasses} key passes</span>}
           <span>{ago === null ? '—' : `updated ${ago}s ago`}</span>
         </div>
       </div>
@@ -248,6 +251,9 @@ function HouseIcon({ dark }: { dark: boolean }) {
 
 const CODE: Record<string, string> = { p1: 'P1', p2: 'P2', unknown: '?', enroute: '→', safe: '✓', normal: '—' };
 const LANG: Record<string, string> = { es: 'Speaks Spanish', vi: 'Speaks Vietnamese' };
+const STEP_LABEL: Record<string, string> = { thought: 'thought', tool_call: 'tool call', tool_result: 'result', decision: 'decision' };
+const ASSIGN_LABEL: Record<string, string> = { offered: 'Offered', accepted: 'Accepted', declined: 'Declined', timed_out: 'Timed out', done: 'Done' };
+const ASSIGN_COLOR: Record<string, string> = { offered: STATUS_COLOR.unknown, accepted: STATUS_COLOR.enroute, declined: STATUS_COLOR.p2, timed_out: STATUS_COLOR.p1, done: STATUS_COLOR.safe };
 
 export function HouseholdCard() {
   const id = useMap((s) => s.selectedId);
@@ -256,7 +262,11 @@ export function HouseholdCard() {
   const select = useMap((s) => s.select);
   const now = useNow();
   const [note, setNote] = useState('');
-  useEffect(() => setNote(''), [id]);
+  const [showReasoning, setShowReasoning] = useState(false);
+  useEffect(() => {
+    setNote('');
+    setShowReasoning(false);
+  }, [id]);
   const p = id === null ? undefined : homes.find((h) => h.id === id);
   if (!p) return null;
   const r = residents[p.idx];
@@ -334,6 +344,40 @@ export function HouseholdCard() {
           ))}
         </div>
       )}
+      {r.triage && (
+        <div className="sect">
+          <div className="label">Nemotron triage · {fmtTime(r.triage.at)}</div>
+          <div className="triage nc">
+            <b style={{ color: r.triage.urgency >= 4 ? STATUS_COLOR.p1 : r.triage.urgency >= 3 ? STATUS_COLOR.p2 : STATUS_COLOR.unknown }}>
+              Urgency {r.triage.urgency}/5
+            </b>
+            {' · '}{r.triage.priority} · needs {r.triage.needs}
+            <span className="conf"> conf {r.triage.confidence.toFixed(2)}</span>
+            <div>{r.triage.reason}</div>
+            <div className="muted">{r.triage.model}</div>
+          </div>
+        </div>
+      )}
+      {(r.assignment || r.keyPass) && (
+        <div className="sect">
+          <div className="label">Response</div>
+          <div className="triage nc">
+            {r.assignment && (
+              <div>
+                <b style={{ color: ASSIGN_COLOR[r.assignment.state] ?? 'var(--warm)' }}>{ASSIGN_LABEL[r.assignment.state] ?? r.assignment.state}</b>
+                {' · '}{r.assignment.helper} (ring {r.assignment.ring}) · {fmtTime(r.assignment.at)}
+              </div>
+            )}
+            {r.keyPass && (
+              <div>
+                Key pass to {r.keyPass.helper} ·{' '}
+                {r.keyPass.revoked ? 'revoked' : r.keyPass.expiresAt < now ? 'expired' : `until ${fmtTime(r.keyPass.expiresAt)}`}
+                {' · '}approved by {r.keyPass.approvedBy}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="sect grid3">
         <div className="cell"><b style={{ color: r.powerOut ? STATUS_COLOR.p1 : STATUS_COLOR.safe }}>{r.powerOut ? 'OUT' : 'ON'}</b><span>Power</span></div>
         <div className="cell"><b>{gap === null ? '—' : `${gap}m`}</b><span>Since contact</span></div>
@@ -356,13 +400,20 @@ export function HouseholdCard() {
         </div>
       </div>
       <div className="sect">
-        <div className="label">Agent log · {r.log.length}</div>
+        <div className="label loghead">
+          {showReasoning ? `Agent reasoning · ${r.reasoning.length}` : `Agent log · ${r.log.length}`}
+          {r.reasoning.length > 0 && (
+            <button className="linkbtn" onClick={() => setShowReasoning(!showReasoning)} aria-pressed={showReasoning}>
+              {showReasoning ? 'Show log' : 'Show reasoning'}
+            </button>
+          )}
+        </div>
         <ol className="log">
-          {r.log.length === 0 && <li className="nc">No events yet for this household.</li>}
-          {r.log.map((e, i) => (
-            <li key={i} className="nc">
+          {(showReasoning ? r.reasoning : r.log).length === 0 && <li className="nc">No events yet for this household.</li>}
+          {(showReasoning ? r.reasoning : r.log).map((e, i) => (
+            <li key={i} className={`nc k-${e.kind}`}>
               <time>{fmtTime(e.at)}</time>
-              {agentName(e.agent)}: {e.text}
+              {agentName(e.agent)}{showReasoning ? ` · ${STEP_LABEL[e.kind] ?? e.kind}` : ''}: {e.text}
               {e.conf !== null && <span className="conf"> conf {e.conf.toFixed(2)}</span>}
             </li>
           ))}

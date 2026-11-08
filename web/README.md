@@ -15,4 +15,11 @@ npm run dev        # http://localhost:5173
 - The dashboard must be staff to see rows. Its identity is in the bottom bar ("Grant 0x...").
 
 Settings: `VITE_SPACETIME_HOST` (default `http://127.0.0.1:3000`), `VITE_SPACETIME_DB` (default
-`firstline`). Full demo steps: [`../docs/demo.md`](../docs/demo.md).
+`firstline`).
+Optional `VITE_SPACETIME_TOKEN` pins one identity so a dev dashboard stays staff when the port or
+browser changes (otherwise every new origin gets a fresh identity that needs a grant). Local demos
+only: `VITE_*` values ship in the bundle, so never set it on a public build.
+
+The household card shows the latest Nemotron triage (`ops_triage`), the helper assignment and key
+pass (`ops_assignment`, `ops_key_pass`), and a **Show reasoning** toggle with every
+`ops_agent_step` row for that household (thoughts, tool calls, results, decisions). Full demo steps: [`../docs/demo.md`](../docs/demo.md).
