@@ -373,7 +373,7 @@ function restart(token: string | undefined) {
   taken.clear();
   useMap.getState().resetLive();
   if (!token) clearToken(); // a key is saved only once the server accepts it (onConnect)
-  startLive(token);
+  startLive(token ?? PINNED_TOKEN);
 }
 
 /** Sign in with a staff access key. Resolves to whether that identity can see the system. */
@@ -395,24 +395,27 @@ export function signIn(accessKey: string): Promise<boolean> {
   });
 }
 
-/** Forget this browser's access key and connect as a new, unprivileged identity. */
+/** Forget this browser's access key: back to the public viewer, or a new unprivileged identity. */
 export function signOut() {
   restart(undefined);
 }
 
-/** Connects with, in order: the given key, the key this browser signed in with, the build's pinned
- *  viewer token, or a new identity. */
 export function startLive(token: string | undefined = readToken() ?? PINNED_TOKEN) {
   const st = useMap.getState();
   st.setLiveInfo({ state: 'connecting', message: `Connecting to ${SPACETIME_HOST} / ${SPACETIME_DB}…` });
 
+  const usedToken = token;
   const conn0 = DbConnection.builder()
     .withUri(SPACETIME_HOST)
     .withDatabaseName(SPACETIME_DB)
     .withToken(token)
     .onConnect((conn, identity, token) => {
       if (conn !== liveConn) return; // a newer sign-in replaced this connection
-      if (token !== PINNED_TOKEN) writeToken(token); // the public viewer token is never saved over a sign-in
+      // The shared viewer token is never saved: a saved token always means this browser's own
+      // identity or a staff key someone signed in with.
+      const viewer = !!PINNED_TOKEN && usedToken === PINNED_TOKEN;
+      if (!viewer) writeToken(token);
+      useMap.getState().setLiveInfo({ viewer });
       const hex = identity.toHexString();
       console.info(`[firstline] dashboard identity 0x${hex}`);
       useMap.getState().setLiveInfo({ identity: hex });
