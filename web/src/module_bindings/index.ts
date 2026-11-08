@@ -36,6 +36,7 @@ import {
 // Import all reducer arg schemas
 import AcceptAssignmentReducer from "./accept_assignment_reducer";
 import AddStaffReducer from "./add_staff_reducer";
+import AddViewerReducer from "./add_viewer_reducer";
 import AssignHelperReducer from "./assign_helper_reducer";
 import CheckInReducerReducer from "./check_in_reducer_reducer";
 import DeclineAssignmentReducer from "./decline_assignment_reducer";
@@ -48,6 +49,7 @@ import PressSosReducer from "./press_sos_reducer";
 import RecountNowReducer from "./recount_now_reducer";
 import RegisterPersonReducer from "./register_person_reducer";
 import RemoveStaffReducer from "./remove_staff_reducer";
+import RemoveViewerReducer from "./remove_viewer_reducer";
 import ReportSignalReducer from "./report_signal_reducer";
 import RevokeKeyPassReducer from "./revoke_key_pass_reducer";
 import SaveIncidentReportReducer from "./save_incident_report_reducer";
@@ -58,10 +60,12 @@ import SetPriorityReducer from "./set_priority_reducer";
 import SetSafetyNetReducer from "./set_safety_net_reducer";
 import SetTimingReducer from "./set_timing_reducer";
 import SetWorkerIdentityReducer from "./set_worker_identity_reducer";
+import UpdateLocationReducer from "./update_location_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import DashPersonRow from "./dash_person_table";
 import HexCellRow from "./hex_cell_table";
 import MyAssignmentRow from "./my_assignment_table";
 import MyHouseholdRow from "./my_household_table";
@@ -97,6 +101,13 @@ const tablesSchema = __schema({
       { name: 'hex_cell_h3_cell_key', constraint: 'unique', columns: ['h3Cell'] },
     ],
   }, HexCellRow),
+  dashPerson: __table({
+    name: 'dash_person',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, DashPersonRow),
   myAssignment: __table({
     name: 'my_assignment',
     indexes: [
@@ -229,6 +240,7 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("accept_assignment", AcceptAssignmentReducer),
   __reducerSchema("add_staff", AddStaffReducer),
+  __reducerSchema("add_viewer", AddViewerReducer),
   __reducerSchema("assign_helper", AssignHelperReducer),
   __reducerSchema("check_in", CheckInReducerReducer),
   __reducerSchema("decline_assignment", DeclineAssignmentReducer),
@@ -241,6 +253,7 @@ const reducersSchema = __reducers(
   __reducerSchema("recount_now", RecountNowReducer),
   __reducerSchema("register_person", RegisterPersonReducer),
   __reducerSchema("remove_staff", RemoveStaffReducer),
+  __reducerSchema("remove_viewer", RemoveViewerReducer),
   __reducerSchema("report_signal", ReportSignalReducer),
   __reducerSchema("revoke_key_pass", RevokeKeyPassReducer),
   __reducerSchema("save_incident_report", SaveIncidentReportReducer),
@@ -251,6 +264,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_safety_net", SetSafetyNetReducer),
   __reducerSchema("set_timing", SetTimingReducer),
   __reducerSchema("set_worker_identity", SetWorkerIdentityReducer),
+  __reducerSchema("update_location", UpdateLocationReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -261,6 +275,8 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
   tables: typeof tablesSchema.schemaType.tables & {
     /** @deprecated Use `hexCell` instead. This alias will be removed in the next major version. */
     readonly "hex_cell": Omit<typeof tablesSchema.schemaType.tables["hexCell"], "accessorName"> & { readonly accessorName: "hex_cell" };
+    /** @deprecated Use `dashPerson` instead. This alias will be removed in the next major version. */
+    readonly "dash_person": Omit<typeof tablesSchema.schemaType.tables["dashPerson"], "accessorName"> & { readonly accessorName: "dash_person" };
     /** @deprecated Use `myAssignment` instead. This alias will be removed in the next major version. */
     readonly "my_assignment": Omit<typeof tablesSchema.schemaType.tables["myAssignment"], "accessorName"> & { readonly accessorName: "my_assignment" };
     /** @deprecated Use `myHousehold` instead. This alias will be removed in the next major version. */
@@ -316,6 +332,7 @@ const REMOTE_MODULE = {
 
 const tableAccessorAliases = {
   "hex_cell": "hexCell",
+  "dash_person": "dashPerson",
   "my_assignment": "myAssignment",
   "my_household": "myHousehold",
   "my_key_pass": "myKeyPass",
@@ -356,6 +373,8 @@ type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
 export type DbView = __DbViewBase & {
   /** @deprecated Use `hexCell` instead. This alias will be removed in the next major version. */
   readonly "hex_cell": __DbViewBase["hexCell"];
+  /** @deprecated Use `dashPerson` instead. This alias will be removed in the next major version. */
+  readonly "dash_person": __DbViewBase["dashPerson"];
   /** @deprecated Use `myAssignment` instead. This alias will be removed in the next major version. */
   readonly "my_assignment": __DbViewBase["myAssignment"];
   /** @deprecated Use `myHousehold` instead. This alias will be removed in the next major version. */
@@ -398,6 +417,8 @@ type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
 export type Tables = __TablesBase & {
   /** @deprecated Use `hexCell` instead. This alias will be removed in the next major version. */
   readonly "hex_cell": __TablesBase["hexCell"];
+  /** @deprecated Use `dashPerson` instead. This alias will be removed in the next major version. */
+  readonly "dash_person": __TablesBase["dashPerson"];
   /** @deprecated Use `myAssignment` instead. This alias will be removed in the next major version. */
   readonly "my_assignment": __TablesBase["myAssignment"];
   /** @deprecated Use `myHousehold` instead. This alias will be removed in the next major version. */

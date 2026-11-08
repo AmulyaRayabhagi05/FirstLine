@@ -1,19 +1,23 @@
 // Live connection from the dashboard to the FirstLine SpacetimeDB module. Everything the map
 // shows (who lives where, their status, the agents' reasoning, incident reports) comes from here.
 //
-// The connecting identity must be staff to see rows (ops_* views are empty otherwise). Its
-// identity is shown in the HUD and logged to the console; the module owner grants it once:
-//   spacetime call --server local firstline add_staff '"<identity>"'
+// The connecting identity must be staff or a read-only viewer to see rows (the views are empty
+// otherwise). The public build ships a viewer token (VITE_SPACETIME_TOKEN); without one, the
+// identity is shown in the HUD and the module owner grants it once:
+//   spacetime call --server local firstline add_viewer '"<identity>"'
 
 import { DbConnection } from '../module_bindings';
 import { DALLAS_NEIGHBORHOODS, homes, project, type Status } from '../sim/world';
-import { useMap, type AgentLine, type IncidentReport, type Resident } from '../state/store';
+import { useMap, type AgentLine, type AssignmentInfo, type IncidentReport, type KeyPassInfo, type Resident, type TriageInfo } from '../state/store';
 import { toMapStatus } from './spacetime';
 
 export const SPACETIME_HOST: string = (import.meta.env.VITE_SPACETIME_HOST as string) || 'http://127.0.0.1:3000';
 export const SPACETIME_DB: string = (import.meta.env.VITE_SPACETIME_DB as string) || 'firstline';
 
 const TOKEN_KEY = `firstline.spacetime.token.${SPACETIME_DB}`;
+/** Optional pinned token: one identity across ports and browsers. Anything in VITE_* ships in the
+ *  bundle, so a public build may only pin a read-only VIEWER token, never a staff one. */
+const PINNED_TOKEN = (import.meta.env.VITE_SPACETIME_TOKEN as string | undefined) || undefined;
 /** Signals that mean a person is exposed to the event, so silence from them is a risk. */
 const EXPOSURE = new Set(['power_out', 'phone_offline', 'low_temp', 'geofence_entered']);
 /** Worst first: a household shows the most urgent status among its people. */
@@ -86,7 +90,7 @@ function place(householdId: string, lat: number, lng: number): number | null {
 
 function snapshot(conn: DbConnection) {
   const db = conn.db;
-  const people = [...db.opsPerson.iter()];
+  const people = [...db.dashPerson.iter()];
   const households = [...db.opsHousehold.iter()];
   const sosAll = [...db.opsSosEvent.iter()];
   const assignments = [...db.opsAssignment.iter()];
@@ -94,6 +98,9 @@ function snapshot(conn: DbConnection) {
   const signals = [...db.opsSignal.iter()];
   const steps = [...db.opsAgentStep.iter()];
   const nets = [...db.opsSafetyNet.iter()];
+  const triages = [...db.opsTriage.iter()];
+  const keyPasses = [...db.opsKeyPass.iter()];
+  const now = Date.now();
   const cells = new Map([...db.hexCell.iter()].map((c) => [c.h3Cell, c]));
 
   const personById = new Map(people.map((p) => [key(p.id), p]));
@@ -155,9 +162,9 @@ function snapshot(conn: DbConnection) {
     return null;
   };
 
-  // Only decisions reach people; thoughts and tool calls are the agents' working notes.
-  const feed: AgentLine[] = steps
-    .filter((s) => s.kind === 'decision')
+  // Every step, tied to a home where its subject resolves to one. Only decisions reach the
+  // ticker; the household card can open the full reasoning (thoughts, tool calls, results).
+  const allLines: AgentLine[] = steps
     .map((s) => ({
       at: ms(s.createdAt)!,
       agent: s.agent,
@@ -168,6 +175,49 @@ function snapshot(conn: DbConnection) {
       homeIdx: homeOfSubject(s.subject),
     }))
     .sort((a, b) => a.at - b.at);
+  const feed = allLines.filter((s) => s.kind === 'decision');
+  const linesByHome = new Map<number, AgentLine[]>();
+  for (const l of allLines) {
+    if (l.homeIdx === null) continue;
+    const arr = linesByHome.get(l.homeIdx);
+    if (arr) arr.push(l);
+    else linesByHome.set(l.homeIdx, [l]);
+  }
+
+  // Latest triage per person.
+  const latestTriage = new Map<string, (typeof triages)[number]>();
+  for (const t of triages) {
+    const k = key(t.personId);
+    const prev = latestTriage.get(k);
+    if (!prev || ms(prev.createdAt)! < ms(t.createdAt)!) latestTriage.set(k, t);
+  }
+  const nameOf = (pid: bigint) => personById.get(key(pid))?.name ?? `#${pid}`;
+
+  function householdTriage(rows: ((typeof triages)[number] | undefined)[]): TriageInfo | null {
+    const t = rows.filter((r): r is (typeof triages)[number] => !!r).sort((a, b) => ms(b.createdAt)! - ms(a.createdAt)!)[0];
+    return t
+      ? { urgency: t.urgency, confidence: t.confidence, needs: t.needs, priority: t.priority, reason: t.reason, model: t.model, at: ms(t.createdAt)! }
+      : null;
+  }
+  function householdAssignment(personIds: Set<string>): AssignmentInfo | null {
+    let best: (typeof assignments)[number] | null = null;
+    for (const a of assignments) {
+      const s = sosById.get(key(a.sosId));
+      if (!s || !personIds.has(key(s.personId))) continue;
+      if (!best || ms(a.offeredAt)! > ms(best.offeredAt)!) best = a;
+    }
+    return best ? { state: best.state, helper: nameOf(best.helperId), ring: best.ring, at: ms(best.offeredAt)! } : null;
+  }
+  function householdKeyPass(householdId: string): KeyPassInfo | null {
+    let best: (typeof keyPasses)[number] | null = null;
+    for (const kp of keyPasses) {
+      if (key(kp.householdId) !== householdId) continue;
+      if (!best || ms(kp.grantedAt)! > ms(best.grantedAt)!) best = kp;
+    }
+    return best
+      ? { helper: nameOf(best.helperId), approvedBy: best.approvedBy, grantedAt: ms(best.grantedAt)!, expiresAt: ms(best.expiresAt)!, revoked: best.revoked }
+      : null;
+  }
 
   const residents: (Resident | null)[] = homes.map(() => null);
   for (const h of households) {
@@ -239,6 +289,10 @@ function snapshot(conn: DbConnection) {
       net,
       log,
       members: members.map((m) => ({ id: m.id, status: statusOf(m) })),
+      reasoning: linesByHome.get(idx) ?? [],
+      triage: householdTriage(members.map((m) => latestTriage.get(key(m.id)))),
+      assignment: householdAssignment(ids),
+      keyPass: householdKeyPass(key(h.id)),
     };
   }
 
@@ -262,7 +316,10 @@ function snapshot(conn: DbConnection) {
     households: households.length,
     openSos: sosAll.filter((s) => s.state !== 'resolved').length,
     alertedCells: [...cells.values()].filter((c) => c.alertLevel).length,
-    lastUpdate: Date.now(),
+    triaged: triages.length,
+    agentSteps: steps.length,
+    activeKeyPasses: keyPasses.filter((k) => !k.revoked && ms(k.expiresAt)! > now).length,
+    lastUpdate: now,
   });
 }
 
@@ -343,7 +400,9 @@ export function signOut() {
   restart(undefined);
 }
 
-export function startLive(token: string | undefined = readToken()) {
+/** Connects with, in order: the given key, the key this browser signed in with, the build's pinned
+ *  viewer token, or a new identity. */
+export function startLive(token: string | undefined = readToken() ?? PINNED_TOKEN) {
   const st = useMap.getState();
   st.setLiveInfo({ state: 'connecting', message: `Connecting to ${SPACETIME_HOST} / ${SPACETIME_DB}…` });
 
@@ -353,7 +412,7 @@ export function startLive(token: string | undefined = readToken()) {
     .withToken(token)
     .onConnect((conn, identity, token) => {
       if (conn !== liveConn) return; // a newer sign-in replaced this connection
-      writeToken(token);
+      if (token !== PINNED_TOKEN) writeToken(token); // the public viewer token is never saved over a sign-in
       const hex = identity.toHexString();
       console.info(`[firstline] dashboard identity 0x${hex}`);
       useMap.getState().setLiveInfo({ identity: hex });
@@ -373,7 +432,7 @@ export function startLive(token: string | undefined = readToken()) {
         .subscriptionBuilder()
         .onApplied(() => {
           const db = conn.db;
-          for (const t of [db.opsPerson, db.opsHousehold, db.opsSosEvent, db.opsAssignment, db.opsCheckIn, db.opsSignal, db.opsAgentStep, db.opsIncidentReport, db.opsSafetyNet, db.hexCell] as const) {
+          for (const t of [db.dashPerson, db.opsHousehold, db.opsSosEvent, db.opsAssignment, db.opsCheckIn, db.opsSignal, db.opsAgentStep, db.opsIncidentReport, db.opsSafetyNet, db.opsTriage, db.opsKeyPass, db.hexCell] as const) {
             const table = t as unknown as { onInsert(cb: () => void): void; onDelete(cb: () => void): void; onUpdate?: (cb: () => void) => void };
             table.onInsert(refresh);
             table.onDelete(refresh);
@@ -383,12 +442,12 @@ export function startLive(token: string | undefined = readToken()) {
           const people = useMap.getState().liveInfo.people;
           useMap.getState().setLiveInfo({
             state: 'subscribed',
-            message: people === 0 ? `Connected, but this dashboard is not staff yet. Grant 0x${hex}` : 'Live',
+            message: people === 0 ? `Connected, but this dashboard cannot read yet. Grant 0x${hex} (add_viewer)` : 'Live',
           });
         })
         .onError((ctx) => useMap.getState().setLiveInfo({ state: 'error', message: `Subscription failed: ${String((ctx as { event?: unknown }).event ?? 'unknown')}` }))
         .subscribe([
-          'SELECT * FROM ops_person',
+          'SELECT * FROM dash_person',
           'SELECT * FROM ops_household',
           'SELECT * FROM ops_sos_event',
           'SELECT * FROM ops_assignment',
@@ -397,6 +456,8 @@ export function startLive(token: string | undefined = readToken()) {
           'SELECT * FROM ops_agent_step',
           'SELECT * FROM ops_incident_report',
           'SELECT * FROM ops_safety_net',
+          'SELECT * FROM ops_triage',
+          'SELECT * FROM ops_key_pass',
           'SELECT * FROM hex_cell',
         ]);
     })

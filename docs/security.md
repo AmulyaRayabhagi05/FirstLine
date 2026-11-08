@@ -39,6 +39,12 @@ it, and only that identity, the worker, the module owner or a `staff` identity c
 
 ## Still open, and why
 
+- **The public dashboard can read everyone's name, age, address, medical needs, SOS text and the
+  agents' reasoning.** It runs as a read-only `viewer` identity whose token is in the public JS
+  bundle, by choice for the demo. Phone numbers and identities are blanked (`dash_person`) and the
+  audit log stays staff-only; viewers cannot call any reducer. Before real residents use the
+  Maincloud database, put the site behind a login or drop the viewer and use staff grants.
+
 - **Phones are anonymous.** Anyone can create identities, register people with any phone number
   and address, and get the worker to call or text that number (silent-signal checks, helper
   offers). Phone ownership is never verified. Fix: verify the phone by SMS code before a person

@@ -226,3 +226,12 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
 .signid code { flex: 1; min-width: 0; font-size: 9px; color: var(--cream); background: var(--bg); border: 1px solid var(--border); padding: 8px; overflow-wrap: anywhere; }
 .signid .btn { padding: 8px 10px; font-size: 9px; }
 .signbox .skip { justify-self: center; margin-top: 4px; }
+/* Household card: triage, response and the reasoning toggle */
+.card .triage { font-size: 9px; line-height: 1.6; color: var(--warm); margin-top: 6px; display: grid; gap: 3px; }
+.card .triage .conf { color: var(--brand); }
+.card .triage .muted { color: var(--dim); font-size: 8px; }
+.card .loghead { display: flex; justify-content: space-between; align-items: center; }
+.card .linkbtn { background: none; border: 0; padding: 0; font: inherit; font-size: 8px; color: var(--enroute); cursor: pointer; text-decoration: underline; }
+.card .log li { overflow-wrap: anywhere; }
+.log li.k-thought, .log li.k-tool_result { color: var(--dim); }
+.log li.k-tool_call { color: var(--enroute); }

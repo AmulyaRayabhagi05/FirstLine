@@ -5,6 +5,8 @@ import { z } from "zod";
 import { computePriority } from "../priority.js";
 import type { Id, Needs, Person, Priority, SosEvent } from "../store/types.js";
 import { confidence, defineTool, runAgentLoop, stepLogger, untrusted, type AgentDeps } from "./loop.js";
+import { RESPONDER_RULES, makeLookupProtocolTool } from "../knowledge/harness.js";
+import { searchProtocols } from "../knowledge/retrieve.js";
 
 export interface TriageOutcome {
   sosId: Id;
@@ -77,8 +79,14 @@ It is urgency 5 / P1 / professional when ANY of these is true:
 - water is entering or rising in the home and anyone there cannot walk or cannot leave on their own
 - someone is trapped, unconscious, not breathing, bleeding badly, has chest pain, or there is a fire
 - oxygen or a powered medical device has no power
+- signs of carbon monoxide: headache, dizziness, nausea or confusion with a generator, grill, heater or car running nearby
+- signs of serious hypothermia: confusion, slurred speech or very sleepy in the cold
 Example: "agua entrando, mi mamá no puede caminar" (water coming in, my mom cannot walk) => urgency 5, professional, P1.
-Steps: first call get_person_profile, then optionally get_weather, then call save_triage, then set done=true.`;
+
+${RESPONDER_RULES}
+
+Steps: call get_person_profile, then lookup_protocol with the hazard you see, optionally get_weather, then save_triage.
+Your reason must cite 1-2 card ids from lookup_protocol in brackets, e.g. "Generator in garage and headache: possible carbon monoxide [co-symptoms-911]". Then set done=true.`;
 
 /**
  * Safety floor: if the keyword rules see a life threat (urgency 5) the saved priority is never
@@ -108,8 +116,15 @@ export const profileSummary = (p: Person) => ({
 });
 
 // Lowercased, accent-stripped keyword rules for the offline fallback.
+const CO_SOURCE = /(generator|generador|grill|parrilla|charcoal|carbon|heater|calentador|stove|estufa|horno|oven|car running|carro prendido|garage|garaje)/;
+const CO_SYMPTOM = /(headache|dolor de cabeza|dizzy|mareo|marea|nause|vomit|confus|weak|debil|sleepy|somnolien|passed out|desmay)/;
+const HYPO_SIGN = /(confus|slurred|arrastra|very sleepy|muy somnolien|won'?t wake|no despierta|blue lips|labios morados)/;
+const COLD = /(cold|frio|freez|helad|no heat|sin calefaccion|no power|sin luz)/;
+
 const RULES: { re: RegExp; urgency: number; needs: Needs; why: string }[] = [
   { re: /(no respira|not breathing|unconscious|inconsciente|chest pain|dolor de pecho|bleed|sangr|fire|fuego|incendio|heart|corazon)/, urgency: 5, needs: "professional", why: "possible medical emergency or fire" },
+  { re: /(carbon monoxide|monoxido|co alarm|alarma de co)/, urgency: 5, needs: "professional", why: "possible carbon monoxide" },
+  { re: /(pipe burst|burst pipe|tuberia reventada|se reviento|water everywhere|leak|fuga)/, urgency: 2, needs: "neighbor", why: "burst pipe" },
   { re: /(water (is )?(coming|rising)|agua (entrando|subiendo)|flood|inunda|nuoc|swept|atrapad|trapped)/, urgency: 5, needs: "professional", why: "rising water / trapped" },
   { re: /(oxygen|oxigeno|ventilator|dialysis|dialisis|insulin|insulina)/, urgency: 4, needs: "professional", why: "medical device or medication at risk" },
   { re: /(can'?t walk|cannot walk|no puede caminar|wheelchair|silla de ruedas|bedridden)/, urgency: 4, needs: "neighbor", why: "person cannot walk" },
@@ -122,18 +137,35 @@ export function ruleTriage(message: string, person?: Person) {
   let urgency = Math.max(2, ...hits.map((h) => h.urgency));
   let needs: Needs = hits.some((h) => h.needs === "professional") ? "professional" : "neighbor";
   const whys = hits.map((h) => h.why);
+  // combinations that are life threats even when neither word alone is
+  if (CO_SOURCE.test(text) && CO_SYMPTOM.test(text)) {
+    urgency = 5;
+    needs = "professional";
+    whys.push("possible carbon monoxide (fuel source + symptoms)");
+  }
+  if (HYPO_SIGN.test(text) && COLD.test(text)) {
+    urgency = 5;
+    needs = "professional";
+    whys.push("hypothermia signs");
+  }
   if (person && (person.mobility === "cannot_walk" || person.poweredDevice) && urgency >= 4) {
     urgency = 5;
     whys.push(person.mobility === "cannot_walk" ? "profile: cannot walk" : "profile: powered device");
   }
-  if (hits.length === 0) needs = "neighbor";
+  if (whys.length === 0) needs = "neighbor";
   const priority: Priority = urgency >= 5 ? "P1" : urgency >= 3 ? "P2" : "P3";
+  // cite the guidance that backs the decision
+  const cites = searchProtocols(message, {
+    k: 2,
+    profile: person ? { age: person.age, poweredDevice: person.poweredDevice, medicalNeeds: person.medicalNeeds, mobility: person.mobility, livesAlone: person.livesAlone } : undefined,
+  }).map((c) => `[${c.id}]`);
+  const base = whys.length ? `Rules: ${whys.join(", ")}.` : "Rules: no danger keywords; needs a check.";
   return {
     urgency,
     needs,
     priority,
-    reason: whys.length ? `Rules: ${whys.join(", ")}.` : "Rules: no danger keywords; needs a check.",
-    confidence: hits.length ? 0.55 : 0.3,
+    reason: cites.length ? `${base} ${cites.join(" ")}` : base,
+    confidence: whys.length ? 0.55 : 0.3,
   };
 }
 
@@ -190,6 +222,10 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
         const alerts = await services.weather.alertsForCell(sos.h3Cell);
         return { cell_alert: cell?.alertLevel || "none", alerts };
       },
+    }),
+    makeLookupProtocolTool(async () => {
+      const p = await store.getPerson(sos.personId);
+      return p ? { age: p.age, poweredDevice: p.poweredDevice, medicalNeeds: p.medicalNeeds, mobility: p.mobility, livesAlone: p.livesAlone } : undefined;
     }),
     defineTool({
       name: "save_triage",

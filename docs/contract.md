@@ -58,6 +58,13 @@ tables (`SELECT * FROM ops_person`):
 Views have no client-side indexes: look rows up with `iter()`, not `.id.find()`.
 `staff` table: `identity` (PK), `added_at`.
 
+Viewer role (addition, public dashboard): `viewer` table (`identity` PK, `added_at`). A viewer may
+read `dash_person` and every `ops_*` view except `ops_person` and `ops_audit_log`, and may call no
+reducer (`register_person` refuses viewers, so a viewer never owns people). `dash_person` returns
+`person` rows with `phone` blanked and `identity` empty, for staff and viewers; the web dashboard
+reads people from it. Owner-only `add_viewer(identity)` / `remove_viewer(identity)`. The viewer's
+token ships in the public web bundle (`VITE_SPACETIME_TOKEN`); rotate it by removing the identity.
+
 ## Reducers
 
 Who may call what: "self" = the identity that registered the person (`person.identity`),
@@ -155,3 +162,16 @@ Hypertables `readings(time, person_id, h3_cell, kind, value)`,
 `contact_events(time, person_id, h3_cell, channel, result)`. Continuous aggregates `cell_5m`,
 `person_last_contact`. SQL tools: `at_risk_now`, `cell_trend(h3_cell, hours)`,
 `person_timeline(person_id)`. Connection string in `agents/.env` as `TIGER_DATABASE_URL`.
+
+## Safety guidance (knowledge harness, `agents/src/knowledge/`)
+
+Read-only protocol cards (CDC, FEMA/Ready.gov, Red Cross, NWS, FDA, Texas DSHS, FEMA CERT) that the
+agents retrieve; nothing writes to them at runtime. Each card has a stable `id`.
+- Triage calls the `lookup_protocol` tool and cites card ids in brackets inside `triage.reason`,
+  e.g. `Generator in garage and headache: possible carbon monoxide [co-symptoms-911]`. The
+  `save_triage` schema is unchanged; citations live in the reason string.
+- The rules fallback also appends cited ids, and treats fuel source + CO symptoms, and confusion in
+  the cold, as P1.
+- Check-in calls read 1-2 cited lines chosen for the person (`spokenGuidance`).
+- Optional dense retrieval: `EMBED_BASE_URL`, `EMBED_MODEL`, `EMBED_API_KEY` in `agents/.env`
+  (NVIDIA embedding model on an OpenAI-compatible `/embeddings`). Without them, keyword search only.

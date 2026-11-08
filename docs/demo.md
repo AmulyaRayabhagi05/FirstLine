@@ -73,3 +73,4 @@ incident reports panel fill in as the reports agent writes them.
 | `N`, `SEED` | reset, storm | `1000`, `20210214` |
 | `SPEED`, `FROM`, `TO` | storm | `240`, whole night |
 | `VITE_SPACETIME_HOST`, `VITE_SPACETIME_DB` | web | `http://127.0.0.1:3000`, `firstline` |
+| `VITE_SPACETIME_TOKEN` | web (local only) | unset: a new identity per browser origin |
