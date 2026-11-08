@@ -122,6 +122,11 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
       lines.push(`- ${who?.name ?? `person ${s.personId}`}, ${hh?.address ?? "?"}: "${s.message.slice(0, 100)}" ${await sosSummary(this.deps, s.id)}`);
     }
     if (p1.length) lines.push(`P1 people: ${p1.slice(0, 8).map((p) => p.name).join(", ")}.`);
+    const help = people.filter((p) => p.status === "needs_help").sort((a, b) => b.priorityScore - a.priorityScore || b.age - a.age);
+    if (help.length) {
+      const rows = await Promise.all(help.slice(0, 8).map(async (p) => `${p.name} (${p.age}${p.livesAlone ? ", alone" : ""}${p.medicalNeeds ? `, ${p.medicalNeeds}` : ""}), ${(await store.getHousehold(p.householdId))?.address ?? "?"}`));
+      lines.push(`People who need help (${help.length}), most at risk first: ${rows.join("; ")}.`);
+    }
     for (const r of reports) lines.push(`Latest report (${ago(r.createdAt)}): ${r.summary.slice(0, 300)}${r.blockedRoads ? ` Blocked roads: ${r.blockedRoads.slice(0, 120)}.` : ""}`);
     // Anyone the caller names gets their full record.
     const t = text.toLowerCase();
@@ -143,9 +148,10 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
       const open = (await this.deps.store.listOpenSos()).length;
       const p1 = people.filter((p) => p.priority === "P1").length;
       const unknown = people.filter((p) => p.status === "unknown").length;
+      const help = people.filter((p) => p.status === "needs_help").length;
       return {
         lang: "en",
-        say: `FirstLine operations. Right now there are ${open} open S O S events, ${p1} priority one people, and ${unknown} people we have not reached. Ask me about any household, what to do next, or safety guidance.`,
+        say: `FirstLine operations. Right now ${help} people need help, with ${open} open S O S events and ${p1} priority one. ${unknown} people have not been reached. Ask me about any household, what to do next, or safety guidance.`,
       };
     }
     if (mode === "resident" && person) {
@@ -186,7 +192,7 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
       "/no_think",
       "You are FirstLine's phone line during a disaster. Your words are read aloud by text to speech.",
       rules[state.mode],
-      "Rules: at most three short sentences. Plain speech, no lists, no markdown, no card ids, no URLs. Use only facts from CONTEXT and GUIDANCE; if you do not know, say so. If anything sounds life threatening, tell them to call 9 1 1 first.",
+      "Rules: at most three short sentences. Plain speech, no lists, no markdown, no card ids, no URLs, never read out hexagon cell ids or other codes (say the street or neighborhood instead). Use only facts from CONTEXT and GUIDANCE; if you do not know, say so. If anything sounds life threatening, tell them to call 9 1 1 first.",
       `Answer in ${state.lang === "es" ? "Spanish" : "English"} unless the caller switches language.`,
       'Reply with one JSON object: {"say": "...", "action": "none" | "sos" | "safe" | "hangup"}',
       `CONTEXT (live from the FirstLine database):\n${context}`,
