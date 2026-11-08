@@ -2,8 +2,31 @@
 // `contact_events` (schema: db/tiger/schema.sql on feat/feeds-tiger). Skips when
 // TIGER_DATABASE_URL is unset. Kinds match that schema: home_temp_f, power_out (1/0),
 // phone_offline_min.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { eventTime, type Storm } from "../storm.js";
 import type { World } from "../types.js";
+
+// Same TLS policy as agents/src/tiger/client.ts: Tiger Cloud is verified against its own CA
+// (bundled), other remote hosts against the system CAs, plaintext only for localhost or an
+// explicit sslmode=disable. Certificate checks were off before (MITM could read the history).
+const TIMESCALE_CA_PATH = fileURLToPath(new URL("../../../db/tiger/timescale-ca.pem", import.meta.url));
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+export function pgSslFor(url: string): false | { ca?: string; rejectUnauthorized: true } {
+  if (/sslmode=disable/.test(url)) return false;
+  if (/\.tsdb\.cloud\.timescale\.com/.test(url)) {
+    return { ca: readFileSync(process.env.TIGER_CA_CERT || TIMESCALE_CA_PATH, "utf8"), rejectUnauthorized: true };
+  }
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // not a URL
+  }
+  const wantsSsl = /sslmode=(require|verify-ca|verify-full)/.test(url);
+  return wantsSsl || (host !== "" && !LOCAL_HOSTS.has(host)) ? { rejectUnauthorized: true } : false;
+}
 
 export interface ReadingRow {
   time: string;
@@ -87,7 +110,9 @@ export async function loadTiger(world: World, storm: Storm, opts: { start?: stri
       return { skipped: true, readings: readings.length, contacts: contacts.length };
     }
     const pg = await import("pg");
-    const c = new pg.default.Client({ connectionString: url, ssl: url.includes("sslmode=disable") ? false : { rejectUnauthorized: false } });
+    // pg lets `sslmode` in the URL override `ssl`, so drop it and pass TLS settings explicitly.
+    const bare = url.replace(/([?&])sslmode=[^&]*&?/, "$1").replace(/[?&]$/, "");
+    const c = new pg.default.Client({ connectionString: bare, ssl: pgSslFor(url) });
     await c.connect();
     client = c;
     own = true;

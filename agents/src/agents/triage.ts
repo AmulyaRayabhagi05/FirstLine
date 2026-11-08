@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { computePriority } from "../priority.js";
 import type { Id, Needs, Person, Priority, SosEvent } from "../store/types.js";
-import { confidence, defineTool, runAgentLoop, stepLogger, type AgentDeps } from "./loop.js";
+import { confidence, defineTool, runAgentLoop, stepLogger, untrusted, type AgentDeps } from "./loop.js";
 
 export interface TriageOutcome {
   sosId: Id;
@@ -212,7 +212,7 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
     },
   };
 
-  const task = `SOS #${sos.id} from person ${sos.personId} via ${sos.channel} at ${sos.createdAt.toISOString()}:\n"${sos.message}"`;
+  const task = `SOS #${sos.id} from person ${sos.personId} via ${sos.channel} at ${sos.createdAt.toISOString()}:\n${untrusted(sos.message)}`;
   const result = await runAgentLoop({
     agent: "triage",
     subject,

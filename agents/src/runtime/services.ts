@@ -149,7 +149,7 @@ export class TwilioComms implements CommsService {
     const person = await this.store.getPerson(req.personId);
     const helper = req.helperId ? await this.store.getPerson(req.helperId) : undefined;
     if (!helper?.phone) {
-      console.log(`[comms] visit requested for person ${req.personId} (no helper named): ${req.reason}`);
+      console.log(`[comms] visit requested for person ${req.personId} (no helper named)${logText(req.reason)}`);
       return { id: `visit-unrouted-${req.personId}` };
     }
     return this.sendSms(
@@ -159,18 +159,24 @@ export class TwilioComms implements CommsService {
   }
 }
 
+/**
+ * Message bodies and reasons carry names, SOS texts and health details, so logs show them only
+ * with COMMS_LOG_TEXT=1 (handy for a local demo); otherwise just the length.
+ */
+const logText = (text: string) => (process.env.COMMS_LOG_TEXT === "1" ? `: ${text}` : ` (${text.length} chars)`);
+
 /** Logs instead of sending; used when Twilio is not configured. */
 export class LoggingComms extends StubComms {
   override async sendSms(to: string, body: string) {
-    console.log(`[comms:stub] SMS to ${to.slice(0, -4).replace(/\d/g, "•")}${to.slice(-4)}: ${body}`);
+    console.log(`[comms:stub] SMS to ${to.slice(0, -4).replace(/\d/g, "•")}${to.slice(-4)}${logText(body)}`);
     return super.sendSms(to, body);
   }
   override async requestCall(req: CallRequest) {
-    console.log(`[comms:stub] call person ${req.personId}: ${req.reason}`);
+    console.log(`[comms:stub] call person ${req.personId}${logText(req.reason)}`);
     return super.requestCall(req);
   }
   override async requestVisit(req: VisitRequest) {
-    console.log(`[comms:stub] visit person ${req.personId}: ${req.reason}`);
+    console.log(`[comms:stub] visit person ${req.personId}${logText(req.reason)}`);
     return super.requestVisit(req);
   }
 }

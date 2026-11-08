@@ -13,7 +13,7 @@ export function CityCanvas() {
   return (
     <Canvas className="stage" flat dpr={[1, 2]} camera={{ fov: 42, near: 0.5, far: 1200 }} gl={{ antialias: true }}>
       <color attach="background" args={[HAZE]} />
-      <fogExp2 attach="fog" args={[HAZE, 0.0068]} />
+      <fogExp2 attach="fog" args={[HAZE, 0.0045]} />
       <hemisphereLight args={['#c8dade', '#0b1214', 1.1]} />
       <directionalLight position={[-40, 80, 30]} intensity={0.7} color="#d8e6ea" />
       <CameraRig />

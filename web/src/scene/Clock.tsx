@@ -6,7 +6,6 @@ import { live } from './live';
 export function Clock() {
   useFrame((_, dt) => {
     const st = useMap.getState();
-    if (st.mode === 'live') return; // live mode shows the database as it is; there is no replay
     const step = Math.min(dt, 0.1);
     if (st.demo === 'sweep') {
       st.setT(Math.min(st.T + step * 0.22, 1.4));
@@ -19,10 +18,12 @@ export function Clock() {
       if (live.dim <= 0.001) st.setDemo('play');
     } else if (st.demo === 'play') {
       st.setT(st.T + step * 0.42);
+      // The tour ends after one pass; the finale only shows when the live data says no one is unreached.
       const s = useMap.getState();
-      if ((counts(s.statuses).unreached === 0 && s.T > 2) || s.T >= 8) {
+      if (s.T >= 8) {
         st.setDemo('off');
-        st.setFinale(true);
+        const c = counts(s.statuses);
+        if (c.unreached === 0 && c.safe > 0) st.setFinale(true);
       }
     } else if (st.playing) {
       st.setT(st.T + step * 0.33);

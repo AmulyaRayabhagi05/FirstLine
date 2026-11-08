@@ -6,21 +6,29 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { handleInboundText } from "./inbound.js";
+import { inboundLimiter, type RateLimiter } from "./ratelimit.js";
 import type { ChannelStore } from "./store.js";
-import { isValidTwilioRequest, smsTwiml, type TwilioConfig } from "./twilio.js";
+import { emptyTwiml, isValidTwilioRequest, smsTwiml, type TwilioConfig } from "./twilio.js";
 import { handleVoiceResult, handleVoiceStatus, type VoiceDeps } from "./voice.js";
 
 export interface ServerDeps extends VoiceDeps {
   store: ChannelStore;
   cfg: TwilioConfig;
+  /** Per-phone-number limit on inbound SMS (default 10 per 10 minutes). */
+  limiter?: RateLimiter;
 }
 
+const MAX_BODY = 64 * 1024;
+
+class BodyTooLarge extends Error {}
+
 async function readForm(req: IncomingMessage): Promise<Record<string, string>> {
+  if (Number(req.headers["content-length"] ?? 0) > MAX_BODY) throw new BodyTooLarge();
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of req) {
     size += (c as Buffer).length;
-    if (size > 64 * 1024) throw new Error("body too large");
+    if (size > MAX_BODY) throw new BodyTooLarge();
     chunks.push(c as Buffer);
   }
   return Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString("utf8")));
@@ -39,6 +47,7 @@ function send(res: ServerResponse, status: number, body: string, type = "text/xm
 }
 
 export function createMessagingHandler(deps: ServerDeps) {
+  const limiter = deps.limiter ?? inboundLimiter();
   return async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const url = new URL(req.url ?? "/", "http://local");
@@ -47,7 +56,7 @@ export function createMessagingHandler(deps: ServerDeps) {
 
       const form = await readForm(req);
       const sig = req.headers["x-twilio-signature"] as string | undefined;
-      if (!isValidTwilioRequest(deps.cfg.authToken, sig, signedUrl(req, deps.cfg), form)) {
+      if (!isValidTwilioRequest(deps.cfg.authToken, sig, signedUrl(req, deps.cfg), form, deps.cfg.allowUnsigned)) {
         return send(res, 403, "invalid signature", "text/plain");
       }
 
@@ -55,6 +64,10 @@ export function createMessagingHandler(deps: ServerDeps) {
         const from = form.From ?? "";
         const sid = form.MessageSid ?? form.SmsSid;
         if (!sid) return send(res, 400, "missing MessageSid", "text/plain");
+        if (!limiter.allow(`sms:${from}`)) {
+          // Empty TwiML: no reply, so a flood does not also cost outbound SMS.
+          return send(res, 200, emptyTwiml());
+        }
         const person = await deps.store.findPersonByPhone(from);
         const { outcome } = await handleInboundText(deps.store, {
           clientId: `sms:${sid}`,
@@ -89,12 +102,17 @@ export function createMessagingHandler(deps: ServerDeps) {
 
       return send(res, 404, "not found", "text/plain");
     } catch (err) {
-      console.error("[messaging] webhook error", err);
+      if (err instanceof BodyTooLarge) return send(res, 413, "body too large", "text/plain");
+      console.error("[messaging] webhook error", err instanceof Error ? err.message : err);
       return send(res, 500, "error", "text/plain");
     }
   };
 }
 
 export function createMessagingServer(deps: ServerDeps): Server {
-  return createServer(createMessagingHandler(deps));
+  const server = createServer(createMessagingHandler(deps));
+  // Twilio answers in well under a second; do not let slow clients hold sockets open.
+  server.headersTimeout = 10_000;
+  server.requestTimeout = 15_000;
+  return server;
 }

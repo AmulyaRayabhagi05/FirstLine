@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MeshtasticBridge, makeMeshSendTool, nodeIdOf, nodeMapResolver, parseNodeNum, type MqttLike } from "../meshtastic-bridge.js";
+import { RateLimiter } from "../ratelimit.js";
 import { InMemoryChannelStore, type ChannelPerson } from "../store.js";
 
 class FakeMqtt implements MqttLike {
@@ -80,6 +81,27 @@ describe("Meshtastic bridge", () => {
     const { store, bridge } = setup();
     await bridge.handleMessage(TOPIC, JSON.stringify(text(300, "FL OK")));
     expect(store.checkIns).toEqual([{ clientId: "mesh:!a1b2c3d4:300", personId: 40, kind: "mesh", result: "safe", note: "" }]);
+  });
+
+  it("FL OK #<id> from an unmapped node cannot mark that person safe", async () => {
+    const { store, bridge } = setup();
+    const r = await bridge.handleMessage(TOPIC, JSON.stringify(text(310, "FL OK #40", 0x1234)));
+    expect(r).toMatchObject({ status: "handled", outcome: { action: "rejected" } });
+    expect(store.checkIns).toHaveLength(0);
+  });
+
+  it("rate limits one node and ignores out-of-range positions", async () => {
+    const store = new InMemoryChannelStore([ruth]);
+    const bridge = new MeshtasticBridge({
+      store, client: new FakeMqtt(), gatewayNode: GATEWAY, log: () => {},
+      limiter: new RateLimiter({ max: 2, windowMs: 60_000 }),
+    });
+    for (const id of [320, 321, 322, 323]) {
+      await bridge.handleMessage(TOPIC, JSON.stringify(text(id, "FL SOS 32.78,-96.80 spam", 0x1234)));
+    }
+    expect(store.sos).toHaveLength(2);
+    await bridge.handleMessage(TOPIC, JSON.stringify({ id: 330, from: 0x1234, type: "position", payload: { latitude_i: 9e9, longitude_i: 0 } }));
+    expect(bridge.positionOf(nodeIdOf(0x1234))).toBeUndefined();
   });
 
   it("de-dupes the same packet heard by two gateways", async () => {

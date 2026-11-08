@@ -1,10 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { DANGER_W, homes, river, roads, world, type Pt } from '../sim/world';
-import { useMap, STATUS_COLOR } from '../state/store';
-import { floodActive } from '../scene/Heat';
+import { DANGER_W, W, homes, river, roads, type Pt } from '../sim/world';
+import { floodActive, useMap, STATUS_COLOR } from '../state/store';
 
 const SIZE = 196;
-let SPAN = 140; // world units shown; grows with the live city
+const SPAN = W; // world units shown: the whole interactive city
 const toM = (v: number) => ((v + SPAN / 2) / SPAN) * SIZE;
 
 function stroke(g: CanvasRenderingContext2D, pl: Pt[]) {
@@ -18,6 +17,7 @@ export function Minimap() {
   const ref = useRef<HTMLCanvasElement>(null);
   const version = useMap((s) => s.version);
   const statuses = useMap((s) => s.statuses);
+  const residents = useMap((s) => s.residents);
   const cam = useMap((s) => s.cam);
   const showZone = useMap((s) => s.showZone);
   const T = useMap((s) => s.T);
@@ -27,10 +27,9 @@ export function Minimap() {
     const c = ref.current;
     if (!c) return;
     const g = c.getContext('2d')!;
-    SPAN = Math.max(140, 2 * (world.radius + 12));
     g.fillStyle = '#0f1719';
     g.fillRect(0, 0, SIZE, SIZE);
-    if (showZone && floodActive()) {
+    if (showZone && floodActive(statuses)) {
       g.strokeStyle = 'rgba(232,40,61,0.22)';
       g.lineWidth = (DANGER_W * 2 * SIZE) / SPAN;
       g.lineCap = 'round';
@@ -43,9 +42,9 @@ export function Minimap() {
     g.lineWidth = 2;
     stroke(g, river);
     homes.forEach((p, i) => {
-      const s = statuses[i] ?? 'normal';
-      g.fillStyle = s === 'normal' || s === 'safe' ? '#2f8a5a' : STATUS_COLOR[s];
-      const r = s === 'p1' || s === 'p2' || s === 'unknown' ? 2 : 1;
+      const s = statuses[i];
+      g.fillStyle = residents[i] ? STATUS_COLOR[s] : '#2a3236';
+      const r = s === 'p1' || s === 'p2' ? 2 : 1;
       g.fillRect(Math.round(toM(p.x)) - r / 2, Math.round(toM(p.z)) - r / 2, r + 1, r + 1);
     });
     // camera: position and view direction

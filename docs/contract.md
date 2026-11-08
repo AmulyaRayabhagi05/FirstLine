@@ -41,7 +41,28 @@ Every table with a location has `h3_cell` so clients can subscribe to their area
 Scheduled tables (SpacetimeDB scheduled reducers): `assignment_timeout_schedule`,
 `key_pass_expiry_schedule`, `recount_schedule`.
 
+### Access (breaking change, security audit)
+
+The database is public on Maincloud, so **every table above except `hex_cell` is private**
+(`config` and the new `staff` table too). Clients read through views, which are subscribed like
+tables (`SELECT * FROM ops_person`):
+
+| View | Returns |
+|---|---|
+| `ops_person`, `ops_household`, `ops_safety_net`, `ops_sos_event`, `ops_check_in`, `ops_signal`, `ops_triage`, `ops_assignment`, `ops_key_pass`, `ops_incident_report`, `ops_agent_step`, `ops_audit_log` | Every row of that table for the module owner, the worker and `staff` identities; no rows for anyone else. The worker and the dashboard use these. |
+| `my_person`, `my_household`, `my_safety_net` | The caller's own people (`person.identity` = caller), their households and safety nets. |
+| `my_sos_event` | SOS events of the caller's people, plus active SOS events one of them was offered or accepted as helper. |
+| `my_assignment` | Assignments offered to the caller's people, and assignments on the caller's own SOS events. |
+| `my_key_pass` | Key passes held by the caller's people and key passes to the caller's households. |
+
+Views have no client-side indexes: look rows up with `iter()`, not `.id.find()`.
+`staff` table: `identity` (PK), `added_at`.
+
 ## Reducers
+
+Who may call what: "self" = the identity that registered the person (`person.identity`),
+"staff" = module owner, worker or a `staff` identity. Phones are anonymous identities today, so a
+phone can act only for the people it registered.
 
 From phones and channels:
 - `register_person(name, age, lives_alone, mobility, medical_needs, powered_device, has_smartphone, language, phone, address, lat, lng)` creates household + person, sets `h3_cell`.
@@ -49,9 +70,17 @@ From phones and channels:
 - `press_sos(client_id, person_id, message, lat, lng, channel)` creates an open `sos_event`, sets person `needs_help`.
 - `check_in(client_id, person_id, kind, result, note)` updates person status and `last_seen`.
 - `report_signal(person_id, kind, value)`.
+- Rules: `register_person` is open (records the caller as `person.identity`; at most 20 people per
+  non-staff identity). `set_safety_net`, `press_sos`, `check_in`, `report_signal`: self or staff.
+  `press_sos` allows at most 5 active SOS per person for non-staff callers. `client_id` prefixes
+  `sms:`, `voice:`, `mesh:` and `mark_safe:` are reserved for staff, and a repeat `client_id`
+  for a different person fails instead of being ignored.
 
 From helpers:
-- `accept_assignment(assignment_id)`, `decline_assignment(assignment_id)`, `mark_safe(person_id, note)`.
+- `accept_assignment(assignment_id)`, `decline_assignment(assignment_id)`: the helper's own
+  identity or staff.
+- `mark_safe(person_id, note)`: self, staff, or a helper whose assignment on one of the person's
+  active SOS events is `accepted`. Writes an `audit_log` row.
 
 From the agent worker (only the worker's identity may call these; the module stores it in a
 `config` row set by `set_worker_identity`, callable once by the module owner):
@@ -64,10 +93,13 @@ From the agent worker (only the worker's identity may call these; the module sto
 - `set_cell_alert(h3_cell, alert_level)`, `set_cell_census(h3_cell, census_elderly_estimate)`
 
 Key pass (every call writes `audit_log`):
-- `grant_key_pass(household_id, helper_id, sos_id, approved_by)` succeeds only if that household
-  has an `open`/`assigned`/`escalated` SOS and a person approved it (`approved_by` non-empty).
-  Expires after 4 hours.
-- `revoke_key_pass(key_pass_id)` (owner or approver), `log_unlock(key_pass_id)` fails if expired or revoked.
+- `grant_key_pass(household_id, helper_id, sos_id, approved_by)` succeeds only if the caller is a
+  resident of that household (by identity) or staff (the worker relays a resident's approval),
+  `approved_by` is non-empty, the SOS is `open`/`assigned`/`escalated` and belongs to a person in
+  that household, and `helper_id` has an `accepted` assignment for that SOS. Expires after 4 hours.
+- `revoke_key_pass(key_pass_id)`: a resident, the identity named in `approved_by`, the helper
+  holding it, or staff. `log_unlock(key_pass_id)`: only the helper holding it or staff, and fails
+  if expired, revoked, or the SOS is no longer active.
 
 Scheduled:
 - `assignment_timeout` marks an `offered` assignment `timed_out` after 10 minutes.
@@ -76,9 +108,11 @@ Scheduled:
 
 Module notes (additions from the server branch; no names above changed):
 - `config` row (`id` 0): `owner` (publisher identity), `worker` (Identity, optional),
-  `assignment_timeout_secs`, `key_pass_ttl_secs`. `set_worker_identity(worker: Identity)`.
+  `assignment_timeout_secs`, `key_pass_ttl_secs`. `set_worker_identity(worker: Identity)`
+  (owner only; calling it again replaces the worker, which is how a leaked worker token is rotated).
 - Extra owner-only reducers: `set_timing(assignment_timeout_secs, key_pass_ttl_secs)` for demos
-  and tests, and `recount_now()` (owner or worker).
+  and tests, `add_staff(identity)` / `remove_staff(identity)` for dashboard and dispatcher
+  identities, and `recount_now()` (owner or worker).
 - Key pass refusals are written to `audit_log` (`grant_key_pass_denied:<reason>`,
   `log_unlock_denied:<reason>`, ...) and the call returns without error, because a thrown error
   would roll back the audit row. Callers check for the `key_pass` row or the audit row.

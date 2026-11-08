@@ -2,9 +2,8 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { COMMS, DANGER_W, CITY_R, HALF, PARKS, W, homes, river, roads, streets, type Pt } from '../sim/world';
-import { useMap } from '../state/store';
+import { floodActive, useMap } from '../state/store';
 import { GROUND } from './live';
-import { floodActive } from './Heat';
 
 const toPx = (v: number, S: number) => ((v + HALF) / W) * S;
 
@@ -86,7 +85,7 @@ export function Ground() {
     () =>
       [1, -1].map((side) => {
         const pts = offsetPL(river, DANGER_W * side)
-          .filter(([x, z]) => Math.hypot(x, z) < Math.max(CITY_R, 125) + 4)
+          .filter(([x, z]) => Math.hypot(x, z) < CITY_R + 4)
           .map(([x, z]) => new THREE.Vector3(x, 0.12, z));
         const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: '#e8283d', dashSize: 1.4, gapSize: 1, transparent: true, opacity: 0.85 }));
         line.computeLineDistances();
@@ -95,8 +94,8 @@ export function Ground() {
     [],
   );
   useFrame(() => {
-    const on = useMap.getState().showZone && floodActive();
-    zoneEdges.forEach((l) => (l.visible = on));
+    const { showZone } = useMap.getState();
+    zoneEdges.forEach((l) => (l.visible = showZone && floodActive(useMap.getState().statuses)));
   });
 
   return (
@@ -110,10 +109,10 @@ export function Ground() {
         <meshLambertMaterial map={tex} />
       </mesh>
       <lineSegments geometry={roadGeo}>
-        <lineBasicMaterial color="#47605f" transparent opacity={0.75} />
+        <lineBasicMaterial color="#47605f" transparent opacity={0.7} />
       </lineSegments>
       <lineSegments geometry={streetGeo}>
-        <lineBasicMaterial color="#2f4446" transparent opacity={0.6} />
+        <lineBasicMaterial color="#2f4446" transparent opacity={0.55} />
       </lineSegments>
       <mesh geometry={riverGeos[0]}>
         <meshBasicMaterial color="#1d4a5e" transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} />

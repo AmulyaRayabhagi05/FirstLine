@@ -1,11 +1,70 @@
 import { create } from 'zustand';
-import { CITY_R, SIM_HOMES, homes, setHomes, statusAt, world, type Status } from '../sim/world';
+import { homes, type Status } from '../sim/world';
 
 export type DemoPhase = 'off' | 'sweep' | 'flatten' | 'play';
-export interface Decision { id: string; agent: string; text: string; when: Date; homeId: number | null; conf: number | null }
+
+/** One agent reasoning step from ops_agent_step, tied to a home when its subject resolves to one. */
+export interface AgentLine {
+  at: number; // ms since epoch
+  agent: string;
+  kind: string;
+  text: string;
+  conf: number | null;
+  subject: string;
+  homeIdx: number | null;
+}
+
+/** The household shown on a map home, built from SpacetimeDB rows. */
+export interface Resident {
+  householdId: string;
+  address: string;
+  neighborhood: string;
+  name: string; // the most at-risk person in the household
+  age: number;
+  people: number;
+  alone: boolean;
+  device: boolean;
+  mobility: string;
+  medical: string;
+  smart: boolean;
+  language: string;
+  priority: string;
+  priorityScore: number;
+  status: Status;
+  powerOut: boolean;
+  lastSeen: number | null;
+  lastContactVia: string | null;
+  helper: string | null;
+  net: { name: string; status: Status }[];
+  log: AgentLine[];
+  /** Every person in the household, for actions that write per person (mark safe, the flood demo). */
+  members: { id: bigint; status: Status }[];
+}
+
+export interface IncidentReport {
+  id: string;
+  cell: string;
+  summary: string;
+  blockedRoads: string;
+  p1: number;
+  p2: number;
+  unknown: number;
+  at: number;
+}
+
+export interface LiveInfo {
+  state: 'connecting' | 'subscribed' | 'error';
+  message: string;
+  identity: string;
+  people: number;
+  households: number;
+  openSos: number;
+  alertedCells: number;
+  lastUpdate: number;
+}
 
 export interface MapState {
-  T: number; // hours after 22:00
+  T: number; // camera choreography clock for the demo (sweep, flatten, play), in arbitrary units
   playing: boolean;
   dimTarget: number; // 0 = flat 2D map, 1 = 3D city
   selectedId: number | null;
@@ -14,8 +73,12 @@ export interface MapState {
   showBeams: boolean;
   showZone: boolean;
   showNames: boolean;
-  statuses: Status[];
-  version: number; // bumps when any status changes
+  statuses: Status[]; // per home, from residents
+  residents: (Resident | null)[]; // per home; null = no registered household placed there
+  feed: AgentLine[]; // newest last
+  reports: IncidentReport[]; // newest first
+  liveInfo: LiveInfo;
+  version: number; // bumps when live data changes
   cam: { x: number; z: number; theta: number }; // for the minimap
   setT: (t: number) => void;
   setPlaying: (v: boolean) => void;
@@ -29,24 +92,14 @@ export interface MapState {
   requestPan: (x: number, z: number) => void;
   intro: boolean;
   setIntro: (v: boolean) => void;
-  // live mode
-  mode: 'live' | 'sim';
-  conn: 'connecting' | 'live' | 'error' | 'off';
-  connError: string;
-  worldVersion: number;
-  liveInfo: { people: number; households: number; updatedAt: Date | null; needHelp: number };
-  decisions: Decision[];
-  setLive: (p: Partial<Pick<MapState, 'conn' | 'connError' | 'liveInfo' | 'decisions'>>) => void;
-  applyLiveStatuses: (s: Status[], relayout: boolean) => void;
-  useSim: () => void;
   layersOpen: boolean;
   setLayersOpen: (v: boolean) => void;
+  setLive: (data: { residents: (Resident | null)[]; feed: AgentLine[]; reports: IncidentReport[] }) => void;
+  setLiveInfo: (info: Partial<LiveInfo>) => void;
 }
 
-const computeStatuses = (t: number) => homes.map((h) => statusAt(h, t));
-
 export const useMap = create<MapState>((set, get) => ({
-  T: 0, // the city is quiet behind the intro; the night starts when the user enters
+  T: 0,
   playing: false,
   dimTarget: 1,
   selectedId: null,
@@ -55,17 +108,15 @@ export const useMap = create<MapState>((set, get) => ({
   showBeams: true,
   showZone: true,
   showNames: true,
-  statuses: computeStatuses(0),
+  statuses: homes.map(() => 'normal'),
+  residents: homes.map(() => null),
+  feed: [],
+  reports: [],
+  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, lastUpdate: 0 },
   version: 0,
   cam: { x: 0, z: 0, theta: 0.75 },
   panTo: null,
-  setT: (t) => {
-    const T = Math.max(0, Math.min(8, t));
-    const prev = get().statuses;
-    const next = computeStatuses(T);
-    const changed = next.some((s, i) => s !== prev[i]);
-    set(changed ? { T, statuses: next, version: get().version + 1 } : { T });
-  },
+  setT: (t) => set({ T: Math.max(0, Math.min(8, t)) }),
   setPlaying: (v) => set((s) => ({ playing: v, T: v && s.T >= 7.95 ? 0 : s.T })),
   setDim: (d) => set({ dimTarget: Math.max(0, Math.min(1, d)) }),
   select: (id) => set({ selectedId: id }),
@@ -76,27 +127,26 @@ export const useMap = create<MapState>((set, get) => ({
   requestPan: (x, z) => set((s) => ({ panTo: { x, z, n: (s.panTo?.n ?? 0) + 1 } })),
   intro: true,
   setIntro: (v) => set({ intro: v }),
-  mode: new URLSearchParams(location.search).has('sim') ? 'sim' : 'live',
-  conn: 'off',
-  connError: '',
-  worldVersion: 0,
-  liveInfo: { people: 0, households: 0, updatedAt: null, needHelp: 0 },
-  decisions: [],
-  setLive: (p) => set(p as Partial<MapState>),
-  applyLiveStatuses: (s, relayout) =>
-    set((st) => ({ statuses: s, version: st.version + 1, worldVersion: relayout ? st.worldVersion + 1 : st.worldVersion, selectedId: relayout ? null : st.selectedId })),
-  useSim: () => {
-    setHomes(SIM_HOMES);
-    world.radius = CITY_R;
-    set((st) => ({ mode: 'sim', conn: 'off', T: 2.2, statuses: computeStatuses(2.2), version: st.version + 1, worldVersion: st.worldVersion + 1, selectedId: null }));
-  },
   layersOpen: false,
   setLayersOpen: (v) => set({ layersOpen: v }),
+  setLive: ({ residents, feed, reports }) =>
+    set({
+      residents,
+      statuses: residents.map((r) => r?.status ?? 'normal'),
+      feed,
+      reports,
+      version: get().version + 1,
+    }),
+  setLiveInfo: (info) => set((s) => ({ liveInfo: { ...s.liveInfo, ...info } })),
 }));
 
-// Decisions worth surfacing to a person: triage to P1, escalations and reassignments. Routine check-ins stay quiet.
-export const isKeyDecision = (e: { status: string; text: string; agent: string }) =>
-  e.status === 'p1' || /escalat|timed out|next ring/.test(e.text);
+/** True while any household in the river flood zone needs help: the red band and dashed edge show only then. */
+export function floodActive(statuses: Status[]): boolean {
+  return homes.some((h) => h.danger && (statuses[h.idx] === 'p1' || statuses[h.idx] === 'p2' || statuses[h.idx] === 'unknown'));
+}
+
+// Agent decisions worth surfacing to a person in the ticker (the feed already holds decisions only).
+export const isKeyDecision = (e: AgentLine) => e.kind === 'decision';
 
 export function counts(statuses: Status[]) {
   const c = { p1: 0, p2: 0, unknown: 0, enroute: 0, safe: 0, normal: 0 };
@@ -109,7 +159,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   p2: 'Silent risk',
   unknown: 'Not reached',
   enroute: 'Help on the way',
-  safe: 'Safe',
+  safe: 'Checked in safe',
   normal: 'Safe',
 };
 // Green is the normal state of the city. Red means a household needs someone; blue means help is moving.

@@ -12,7 +12,6 @@ export function Places() {
   const selected = useMap((s) => s.selectedId);
   const showNames = useMap((s) => s.showNames);
   const intro = useMap((s) => s.intro);
-  const mode = useMap((s) => s.mode);
   useFrame(() => groups.current.forEach((g) => g && g.scale.set(1, Math.max(0.05, live.homeScale), 1)));
 
   return (
@@ -61,7 +60,6 @@ export function Places() {
       ))}
       {showNames &&
         !intro &&
-        mode === 'sim' &&
         selected === null &&
         COMMS.map((c) => (
           <Html key={c.name} position={[c.x, 3, c.z]} center zIndexRange={[3, 0]} className="tag-comm">

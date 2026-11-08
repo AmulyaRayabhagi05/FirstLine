@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { homes, outerHomes, powerOut, world } from '../sim/world';
+import { homes, outerHomes } from '../sim/world';
 import { useMap } from '../state/store';
 import { live, heightFor } from './live';
 
@@ -46,13 +46,7 @@ const tmp = new THREE.Color();
 const darkTint = new THREE.Color('#1c2036');
 
 // All households as instanced houses (walls with lit windows + low roofs), plus the outer city to the horizon.
-// Re-mounts when the household list changes (live data arriving, or switching to the simulation).
 export function Homes() {
-  const worldVersion = useMap((s) => s.worldVersion);
-  return <HomesInner key={worldVersion} />;
-}
-
-function HomesInner() {
   const bodies = useRef<THREE.InstancedMesh>(null!);
   const roofs = useRef<THREE.InstancedMesh>(null!);
   const oBodies = useRef<THREE.InstancedMesh>(null!);
@@ -76,16 +70,12 @@ function HomesInner() {
   }, []);
 
   useFrame(() => {
-    const { T, mode, version } = useMap.getState();
-    const key = mode === 'live' ? version : T;
-    if (key !== lastT.current && homes.length) {
-      lastT.current = key;
-      const statuses = useMap.getState().statuses;
+    const { version, residents } = useMap.getState();
+    if (version !== lastT.current) {
+      lastT.current = version;
       homes.forEach((p, i) => {
         tmp.set(p.wall);
-        // lights go out in homes that lost power (simulation) or that need help in the live flood
-        const dark = mode === 'live' ? p.danger && (statuses[i] === 'p1' || statuses[i] === 'p2' || statuses[i] === 'unknown') : powerOut(p, T);
-        if (dark) tmp.multiply(darkTint);
+        if (residents[i]?.powerOut) tmp.multiply(darkTint);
         bodies.current.setColorAt(i, tmp);
       });
       bodies.current.instanceColor!.needsUpdate = true;
@@ -108,8 +98,7 @@ function HomesInner() {
       b.computeBoundingSphere();
     };
     place(homes, bodies.current, roofs.current);
-    // the outer city starts where the households end
-    place(outerHomes.map((o) => (Math.hypot(o.x, o.z) < world.radius + 4 ? { ...o, sx: 0, sy: 0 } : o)), oBodies.current, oRoofs.current);
+    place(outerHomes, oBodies.current, oRoofs.current);
   });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {

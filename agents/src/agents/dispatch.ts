@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import type { Assignment, Id, Person, SafetyNetMember, SosEvent, Triage } from "../store/types.js";
-import { called, defineTool, runAgentLoop, stepLogger, type AgentDeps } from "./loop.js";
+import { called, defineTool, runAgentLoop, stepLogger, untrusted, type AgentDeps } from "./loop.js";
 
 export type DispatchTrigger =
   | { kind: "new_sos" }
@@ -184,15 +184,15 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
   const helperLines = pool.length
     ? pool
         .slice(0, 5)
-        .map((c) => `helper_id ${c.helper_id}: ${c.name}, ring ${c.ring}, skills ${c.skills.join("/") || "none"}, ${c.distance_km} km`)
+        .map((c) => `helper_id ${c.helper_id}: ${untrusted(c.name)}, ring ${c.ring}, skills ${c.skills.join("/") || "none"}, ${c.distance_km} km`)
         .join("; ")
     : "none (escalate instead of offering)";
   const task = [
-    `SOS #${sosId} from ${person?.name ?? `person ${sos.personId}`} (person ${sos.personId}, age ${person?.age ?? "?"}, mobility ${person?.mobility ?? "?"}): "${sos.message}"`,
+    `SOS #${sosId} from ${untrusted(person?.name ?? `person ${sos.personId}`)} (person ${sos.personId}, age ${person?.age ?? "?"}, mobility ${person?.mobility ?? "?"}): ${untrusted(sos.message)}`,
     `Person ${sos.personId} is the one who needs help and is never a helper.`,
     `Available helpers, best first: ${helperLines}.`,
     triage
-      ? `Triage: ${triage.priority}, urgency ${triage.urgency}, needs ${triage.needs}, confidence ${triage.confidence}. ${triage.reason}`
+      ? `Triage: ${triage.priority}, urgency ${triage.urgency}, needs ${triage.needs}, confidence ${triage.confidence}. ${untrusted(triage.reason)}`
       : "Triage: not available.",
     `SOS state: ${sos.state}. Previous offers: ${history}.`,
     event,

@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { computePriority, type PriorityResult } from "../priority.js";
 import type { Id, Person } from "../store/types.js";
-import { called, confidence as confidenceSchema, defineTool, runAgentLoop, stepLogger, type AgentDeps } from "./loop.js";
+import { called, confidence as confidenceSchema, defineTool, runAgentLoop, stepLogger, untrusted, type AgentDeps } from "./loop.js";
 
 /** Below this confidence the agent must ask a human (call or visit). */
 export const ASK_HUMAN_BELOW = 0.7;
@@ -96,7 +96,12 @@ export class SilentSignalAgent {
     };
     const requestVisit = async (reason: string, helperId?: Id) => {
       if (requested) return { already_requested: requested };
-      const r = await services.comms.requestVisit({ personId: person.id, helperId, reason });
+      // The model may only route a visit to someone in this person's own safety net; otherwise a
+      // crafted name or note could make the worker text any registered phone.
+      if (helperId !== undefined && !(await store.getSafetyNet(person.id)).some((m) => m.memberId === helperId)) {
+        return { error: `helper ${helperId} is not in this person's safety net; omit helper_id` };
+      }
+      const r =await services.comms.requestVisit({ personId: person.id, helperId, reason });
       requested = "visit";
       this.lastAsked.set(person.id, this.now().getTime());
       return { visit_request_id: r.id };
@@ -148,7 +153,7 @@ You review one person who has NOT sent an SOS but whose risk score is high. Deci
 Use get_signals and get_history. If you are not confident (confidence below ${ASK_HUMAN_BELOW}) you MUST ask a human to check:
 request_call if they have a phone, request_visit if there is no working phone. Set done=true with a one-sentence decision and your confidence.`;
     const task = [
-      `Person ${person.id}: ${person.name}, age ${person.age}, lives alone: ${person.livesAlone}, mobility: ${person.mobility}, medical: ${person.medicalNeeds || "none"}, language: ${person.language}, phone: ${person.phone ? "yes" : "none"}.`,
+      `Person ${person.id}: ${untrusted(person.name)}, age ${person.age}, lives alone: ${person.livesAlone}, mobility: ${person.mobility}, medical: ${untrusted(person.medicalNeeds || "none")}, language: ${untrusted(person.language)}, phone: ${person.phone ? "yes" : "none"}.`,
       `Risk score ${pr.score} (vulnerability ${pr.vulnerability.value} x exposure ${pr.exposure.value} x contact gap ${pr.contactGap.value}) => ${pr.category}.`,
       `Reasons: ${pr.reasons.join("; ")}.`,
     ].join("\n");

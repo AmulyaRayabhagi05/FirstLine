@@ -5,7 +5,8 @@ import { homes, type Status } from '../sim/world';
 import { useMap, STATUS_COLOR } from '../state/store';
 import { live } from './live';
 
-// Every home shows a calm green porch beam; trouble makes it tall and red.
+// Every registered household shows a calm green porch beam; trouble makes it tall and red.
+// Homes with no registered household stay dark.
 const BEAM_H: Record<Status, number> = { p1: 28, p2: 24, unknown: 20, enroute: 14, safe: 5.5, normal: 5.5 };
 const DOT_S: Record<Status, number> = { p1: 1.7, p2: 1.5, unknown: 1.35, enroute: 1.2, safe: 0.7, normal: 0.7 };
 const COLORS = Object.fromEntries(Object.entries(STATUS_COLOR).map(([k, v]) => [k, new THREE.Color(v)])) as Record<Status, THREE.Color>;
@@ -45,11 +46,6 @@ const dummy = new THREE.Object3D();
 
 // Porch beams in 3D; glowing dots on the 2D map. Height and pulse follow urgency.
 export function Beams() {
-  const worldVersion = useMap((s) => s.worldVersion);
-  return <BeamsInner key={worldVersion} />;
-}
-
-function BeamsInner() {
   const cores = useRef<THREE.InstancedMesh>(null!);
   const halos = useRef<THREE.InstancedMesh>(null!);
   const dots = useRef<THREE.InstancedMesh>(null!);
@@ -60,7 +56,6 @@ function BeamsInner() {
   const statuses = useMap((s) => s.statuses);
 
   useEffect(() => {
-    if (!homes.length || statuses.length !== homes.length) return;
     statuses.forEach((s, i) => {
       cores.current.setColorAt(i, COLORS[s]);
       halos.current.setColorAt(i, COLORS[s]);
@@ -70,7 +65,7 @@ function BeamsInner() {
   }, [version, statuses]);
 
   useFrame(({ clock }) => {
-    const { statuses: st, showBeams } = useMap.getState();
+    const { statuses: st, showBeams, residents } = useMap.getState();
     const dim = live.dim;
     const hs = live.homeScale;
     const beamA = Math.min(1, Math.max(0, (dim - 0.25) / 0.5));
@@ -80,11 +75,11 @@ function BeamsInner() {
     cores.current.visible = halos.current.visible = showBeams && beamA > 0;
     dots.current.visible = showBeams && dotMat.opacity > 0;
     const pulse = reduce ? 1 : 0.8 + 0.2 * Math.sin(clock.elapsedTime * 3.8);
-    if (!homes.length) return;
     homes.forEach((p, i) => {
-      const s = st[i] ?? 'normal';
+      const s = st[i];
       const urgent = s === 'p1' || s === 'p2';
-      const h = BEAM_H[s] * (urgent ? pulse : 1);
+      const occupied = residents[i] != null;
+      const h = occupied ? BEAM_H[s] * (urgent ? pulse : 1) : 0;
       const top = p.top * hs;
       dummy.rotation.set(0, 0, 0);
       dummy.position.set(p.x, top - 0.2 * hs, p.z);
@@ -95,7 +90,7 @@ function BeamsInner() {
       dummy.scale.set(w, Math.max(0.0001, h * 0.85), w);
       dummy.updateMatrix();
       halos.current.setMatrixAt(i, dummy.matrix);
-      const ds = Math.max(0.0001, DOT_S[s] * (urgent ? pulse : 1));
+      const ds = Math.max(0.0001, occupied ? DOT_S[s] * (urgent ? pulse : 1) : 0);
       dummy.position.set(p.x, top + 0.05, p.z);
       dummy.scale.set(ds, 1, ds);
       dummy.updateMatrix();

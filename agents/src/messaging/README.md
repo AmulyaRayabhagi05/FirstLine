@@ -23,8 +23,13 @@ FL SOS 32.78,-96.80 2ppl insulin    SOS with location, head count and note
 FL SOS water rising                  SOS; location from the sender's last known position
 FL OK                                check-in: safe
 FL HELP need a ride to dialysis      SOS with free-text need
-FL OK #14                            #<personId> names the person (shared phones, radios)
+FL SOS #14 she fell                  #<personId> names the person (shared phones, radios)
 ```
+
+`#<personId>` can name someone else only to raise an alarm: the SOS text gets
+`[reported for #14 by another sms sender]`. `FL OK` always checks in the sender's own person
+(from the phone number or the mesh node map); `FL OK #14` from any other sender is refused, so
+nobody can mark a stranger safe by text.
 
 Case and spacing don't matter. Spanish verbs work too (`SOCORRO`, `AUXILIO`, `AYUDA`, `BIEN`).
 Text without the `FL` prefix from a registered phone (or a mapped radio) is treated as an SOS
@@ -34,7 +39,12 @@ creates an SOS with `person_id = 0` (unregistered) so it is never dropped.
 
 Idempotency: `client_id` is `sms:<MessageSid>`, `voice:<CallSid>` or
 `mesh:<!nodeId>:<packetId>`, so Twilio retries and packets heard by several gateways create
-one row.
+one row. The module reserves these prefixes for the worker identity.
+
+Abuse limits: each phone number / mesh node gets 10 messages per 10 minutes
+(`INBOUND_MAX_PER_10MIN`); over the limit the SMS gets an empty reply and mesh packets are
+dropped. Message text is clipped to 1000 characters, webhook bodies over 64 KB get 413, and the
+mesh log records the sender and length, never the text.
 
 ## Environment
 
@@ -42,7 +52,8 @@ All from env (`agents/.env`), nothing in the repo.
 
 | Var | Used for |
 |---|---|
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | REST calls; the token also turns on webhook signature checks. Without them a `MockTwilio` logs instead of sending. |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | REST calls; the token is also used to check every webhook's `X-Twilio-Signature` (403 otherwise). Without them a `MockTwilio` logs instead of sending. |
+| `TWILIO_ALLOW_UNSIGNED` | `1` accepts unsigned webhooks when no auth token is set. Local dev only: without it, and without a token, every webhook gets 403 (fail closed). |
 | `TWILIO_FROM_NUMBER` | Number SMS and calls come from |
 | `PUBLIC_BASE_URL` | Public URL Twilio reaches, e.g. `https://abc.ngrok.app` (call webhooks + signature URL) |
 | `MESSAGING_PORT` | Webhook server port, default `8787` |

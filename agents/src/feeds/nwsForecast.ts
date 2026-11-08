@@ -38,6 +38,8 @@ export async function fetchNwsForecast(lat = DALLAS_CENTER.lat, lng = DALLAS_CEN
   const point = await getJson(pointsUrl(lat, lng), { headers: { Accept: 'application/geo+json' } });
   const url = point?.properties?.forecastHourly;
   if (!url) throw new Error('NWS /points returned no forecastHourly URL');
+  // Only follow links back to the NWS API (never to a host named in a response body).
+  if (new URL(url).origin !== 'https://api.weather.gov') throw new Error('NWS forecastHourly URL is not on api.weather.gov');
   return normalizeNwsHourly(await getJson(url, { headers: { Accept: 'application/geo+json' } }), lat, lng);
 }
 

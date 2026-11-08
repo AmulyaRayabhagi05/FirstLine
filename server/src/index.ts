@@ -8,7 +8,7 @@ import {
   type InferSchema,
   type ReducerCtx,
 } from 'spacetimedb/server';
-import { ScheduleAt, Timestamp, type Identity } from 'spacetimedb';
+import { ScheduleAt, Timestamp, type Identity, type Infer } from 'spacetimedb';
 import './textdecoder_shim';
 import { latLngToCell } from 'h3-js';
 
@@ -31,7 +31,7 @@ const PERSON_PRIORITY = ['P1', 'P2', 'P3', 'safe', 'unknown'];
 const SOS_CHANNEL = ['app', 'sms', 'voice', 'mesh'];
 const CHECK_IN_KIND = ['app', 'voice', 'sms', 'neighbor_visit', 'mesh'];
 const CHECK_IN_RESULT = ['safe', 'needs_help', 'no_answer'];
-const SIGNAL_KIND = ['phone_offline', 'power_out', 'low_temp', 'no_motion'];
+const SIGNAL_KIND = ['phone_offline', 'power_out', 'low_temp', 'no_motion', 'geofence_entered'];
 const TRIAGE_NEEDS = ['neighbor', 'professional'];
 const TRIAGE_PRIORITY = ['P1', 'P2', 'P3'];
 const AGENTS = ['triage', 'dispatch', 'silent_signal', 'reports'];
@@ -41,21 +41,36 @@ const ACTIVE_SOS = ['open', 'assigned', 'escalated'];
 
 // ---------------------------------------------------------------------------
 // Tables
+//
+// Access: every table except hex_cell (aggregate counts only) is PRIVATE. The database is
+// public on Maincloud, so any client could otherwise subscribe to names, ages, medical needs,
+// phone numbers, home addresses, SOS texts and key passes. Clients read through views instead
+// (see "Views" below): ops_* views return everything to the owner, the worker and staff
+// identities (empty for anyone else); my_* views return only the caller's own rows.
 // ---------------------------------------------------------------------------
 
 const config = table(
-  { name: 'config', public: true },
+  { name: 'config' },
   {
     id: t.u32().primaryKey(), // always 0
     owner: t.identity(), // identity that published the module (init sender)
-    worker: t.option(t.identity()), // agent worker identity, set once
+    worker: t.option(t.identity()), // agent worker identity (owner can replace it to rotate)
     assignment_timeout_secs: t.u32(),
     key_pass_ttl_secs: t.u32(),
   }
 );
 
+/** Operator identities (dashboards, dispatchers) that may read ops_* views and act for anyone. */
+const staff = table(
+  { name: 'staff' },
+  {
+    identity: t.identity().primaryKey(),
+    added_at: t.timestamp(),
+  }
+);
+
 const person = table(
-  { name: 'person', public: true },
+  { name: 'person' },
   {
     id: t.u64().primaryKey().autoInc(),
     identity: t.option(t.identity()),
@@ -80,7 +95,7 @@ const person = table(
 );
 
 const household = table(
-  { name: 'household', public: true },
+  { name: 'household' },
   {
     id: t.u64().primaryKey().autoInc(),
     address: t.string(),
@@ -107,7 +122,7 @@ const hex_cell = table(
 );
 
 const safety_net = table(
-  { name: 'safety_net', public: true },
+  { name: 'safety_net' },
   {
     id: t.u64().primaryKey().autoInc(),
     owner_id: t.u64().index('btree'),
@@ -118,7 +133,7 @@ const safety_net = table(
 );
 
 const sos_event = table(
-  { name: 'sos_event', public: true },
+  { name: 'sos_event' },
   {
     id: t.u64().primaryKey().autoInc(),
     client_id: t.string().unique(),
@@ -134,7 +149,7 @@ const sos_event = table(
 );
 
 const check_in_table = table(
-  { name: 'check_in', public: true },
+  { name: 'check_in' },
   {
     id: t.u64().primaryKey().autoInc(),
     client_id: t.string().unique(),
@@ -147,7 +162,7 @@ const check_in_table = table(
 );
 
 const signal = table(
-  { name: 'signal', public: true },
+  { name: 'signal' },
   {
     id: t.u64().primaryKey().autoInc(),
     person_id: t.u64().index('btree'),
@@ -158,7 +173,7 @@ const signal = table(
 );
 
 const triage = table(
-  { name: 'triage', public: true },
+  { name: 'triage' },
   {
     id: t.u64().primaryKey().autoInc(),
     sos_id: t.option(t.u64()),
@@ -174,7 +189,7 @@ const triage = table(
 );
 
 const assignment = table(
-  { name: 'assignment', public: true },
+  { name: 'assignment' },
   {
     id: t.u64().primaryKey().autoInc(),
     sos_id: t.u64().index('btree'),
@@ -186,7 +201,7 @@ const assignment = table(
 );
 
 const key_pass = table(
-  { name: 'key_pass', public: true },
+  { name: 'key_pass' },
   {
     id: t.u64().primaryKey().autoInc(),
     household_id: t.u64().index('btree'),
@@ -200,7 +215,7 @@ const key_pass = table(
 );
 
 const incident_report = table(
-  { name: 'incident_report', public: true },
+  { name: 'incident_report' },
   {
     id: t.u64().primaryKey().autoInc(),
     h3_cell: t.string().index('btree'),
@@ -214,7 +229,7 @@ const incident_report = table(
 );
 
 const agent_step = table(
-  { name: 'agent_step', public: true },
+  { name: 'agent_step' },
   {
     id: t.u64().primaryKey().autoInc(),
     agent: t.string(),
@@ -227,7 +242,7 @@ const agent_step = table(
 );
 
 const audit_log = table(
-  { name: 'audit_log', public: true },
+  { name: 'audit_log' },
   {
     id: t.u64().primaryKey().autoInc(),
     actor: t.string(),
@@ -267,6 +282,7 @@ const recount_schedule = table(
 const spacetimedb = schema(
   {
   config,
+  staff,
   person,
   household,
   hex_cell,
@@ -340,6 +356,55 @@ function isOwner(ctx: Ctx): boolean {
 function requireWorker(ctx: Ctx): void {
   if (!isWorker(ctx)) fail('only the agent worker identity may call this reducer');
 }
+
+/** Read-only surface shared by reducers and views (views have no timestamp or writes). */
+type Reader = {
+  sender: Identity;
+  db: {
+    config: { id: { find(id: number): { owner: Identity; worker: Identity | undefined } | null | undefined } };
+    staff: { identity: { find(identity: Identity): unknown } };
+  };
+};
+
+/** Owner, worker or a staff identity: may read ops_* views and act for any person. */
+function isStaff(ctx: Reader): boolean {
+  const c = ctx.db.config.id.find(0);
+  if (!c) return false;
+  if (c.owner.isEqual(ctx.sender)) return true;
+  if (c.worker !== undefined && c.worker.isEqual(ctx.sender)) return true;
+  return !!ctx.db.staff.identity.find(ctx.sender);
+}
+
+/** True when the caller registered this person (phones are anonymous identities today). */
+function isSelf(ctx: { sender: Identity }, p: { identity: Identity | undefined }): boolean {
+  return p.identity !== undefined && p.identity.isEqual(ctx.sender);
+}
+
+/** The person's own identity, or owner / worker / staff. */
+function canActFor(ctx: Ctx, p: { identity: Identity | undefined }): boolean {
+  return isSelf(ctx, p) || isStaff(ctx);
+}
+
+function requireActFor(ctx: Ctx, p: { id: bigint; identity: Identity | undefined }, what: string): void {
+  if (!canActFor(ctx, p)) fail(`not allowed: only person ${p.id}'s own identity or staff may ${what}`);
+}
+
+// client_id prefixes the worker's channels use (sms:<MessageSid>, voice:<CallSid>, mesh:<node>:<id>)
+// and mark_safe's own rows. Other callers may not use them, so nobody can pre-claim the
+// client_id of a future SMS/voice/mesh SOS and make the worker's call a silent no-op.
+const RESERVED_CLIENT_ID = /^(sms|voice|mesh|mark_safe):/i;
+
+function checkClientId(ctx: Ctx, clientId: string): void {
+  if (!clientId) fail('client_id is required');
+  text('client_id', clientId, 200);
+  if (RESERVED_CLIENT_ID.test(clientId) && !isStaff(ctx)) {
+    fail('client_id prefixes sms:, voice:, mesh: and mark_safe: are reserved for the worker');
+  }
+}
+
+// Anti-flooding limits for non-staff identities (the worker, sim and staff are exempt).
+const MAX_PEOPLE_PER_IDENTITY = 20;
+const MAX_ACTIVE_SOS_PER_PERSON = 5;
 
 function requireScheduler(ctx: Ctx): void {
   // Scheduled reducers run as the database itself; block direct client calls.
@@ -480,15 +545,38 @@ export const init = spacetimedb.init(ctx => {
 // Admin
 // ---------------------------------------------------------------------------
 
-/** Module owner sets the agent worker's identity, once. */
+/**
+ * Module owner sets the agent worker's identity. Calling it again replaces the worker, which is
+ * how a leaked worker token is rotated (connect a new worker, then point the module at it).
+ */
 export const set_worker_identity = spacetimedb.reducer(
   { worker: t.identity() },
   (ctx, { worker }) => {
     const c = getConfig(ctx);
     if (!c.owner.isEqual(ctx.sender)) fail('only the module owner may set the worker identity');
-    if (c.worker !== undefined) fail('worker identity is already set');
+    const previous = c.worker?.toHexString() ?? 'none';
     ctx.db.config.id.update({ ...c, worker });
-    audit(ctx, 'set_worker_identity', worker.toHexString());
+    audit(ctx, 'set_worker_identity', `${worker.toHexString()} (was ${previous})`);
+  }
+);
+
+/** Owner-only: let an operator identity (dashboard, dispatcher) read ops_* views and act. */
+export const add_staff = spacetimedb.reducer(
+  { identity: t.identity() },
+  (ctx, { identity }) => {
+    if (!isOwner(ctx)) fail('only the module owner may add staff');
+    if (ctx.db.staff.identity.find(identity)) return;
+    ctx.db.staff.insert({ identity, added_at: ctx.timestamp });
+    audit(ctx, 'add_staff', identity.toHexString());
+  }
+);
+
+/** Owner-only: remove an operator identity. */
+export const remove_staff = spacetimedb.reducer(
+  { identity: t.identity() },
+  (ctx, { identity }) => {
+    if (!isOwner(ctx)) fail('only the module owner may remove staff');
+    if (ctx.db.staff.identity.delete(identity)) audit(ctx, 'remove_staff', identity.toHexString());
   }
 );
 
@@ -540,7 +628,15 @@ export const register_person = spacetimedb.reducer(
     text('medical_needs', a.medical_needs, 500);
     text('address', a.address, 500);
     text('phone', a.phone, 40);
+    text('language', a.language, 20);
     const h3 = cellFor(a.lat, a.lng);
+    if (!isStaff(ctx)) {
+      let mine = 0;
+      for (const p of ctx.db.person.iter()) if (isSelf(ctx, p)) mine++;
+      if (mine >= MAX_PEOPLE_PER_IDENTITY) {
+        fail(`one identity may register at most ${MAX_PEOPLE_PER_IDENTITY} people`);
+      }
+    }
     const hh = ctx.db.household.insert({
       id: 0n,
       address: a.address,
@@ -583,7 +679,7 @@ const NetMember = t.object('NetMember', {
 export const set_safety_net = spacetimedb.reducer(
   { owner_id: t.u64(), members: t.array(NetMember) },
   (ctx, { owner_id, members }) => {
-    getPerson(ctx, owner_id);
+    requireActFor(ctx, getPerson(ctx, owner_id), 'change their safety net');
     if (members.length > 50) fail('a safety net can have at most 50 members');
     const seen = new Set<bigint>();
     const rows = members.map(m => {
@@ -613,12 +709,21 @@ export const press_sos = spacetimedb.reducer(
     channel: t.string(),
   },
   (ctx, a) => {
-    if (!a.client_id) fail('client_id is required');
-    text('client_id', a.client_id, 200);
-    if (ctx.db.sos_event.client_id.find(a.client_id)) return; // idempotent repeat
+    checkClientId(ctx, a.client_id);
+    const prior = ctx.db.sos_event.client_id.find(a.client_id);
+    if (prior) {
+      if (prior.person_id !== a.person_id) fail('client_id was already used for another person');
+      return; // idempotent repeat
+    }
     oneOf('channel', a.channel, SOS_CHANNEL);
     text('message', a.message);
     const p = getPerson(ctx, a.person_id);
+    requireActFor(ctx, p, 'send an SOS for them');
+    if (!isStaff(ctx)) {
+      let active = 0;
+      for (const s of ctx.db.sos_event.person_id.filter(a.person_id)) if (ACTIVE_SOS.includes(s.state)) active++;
+      if (active >= MAX_ACTIVE_SOS_PER_PERSON) fail(`person already has ${active} active SOS events`);
+    }
     const h3 = cellFor(a.lat, a.lng);
     ctx.db.sos_event.insert({
       id: 0n,
@@ -653,13 +758,17 @@ export const check_in_reducer = spacetimedb.reducer(
     note: t.string(),
   },
   (ctx, a) => {
-    if (!a.client_id) fail('client_id is required');
-    text('client_id', a.client_id, 200);
-    if (ctx.db.check_in.client_id.find(a.client_id)) return; // idempotent repeat
+    checkClientId(ctx, a.client_id);
+    const prior = ctx.db.check_in.client_id.find(a.client_id);
+    if (prior) {
+      if (prior.person_id !== a.person_id) fail('client_id was already used for another person');
+      return; // idempotent repeat
+    }
     oneOf('kind', a.kind, CHECK_IN_KIND);
     oneOf('result', a.result, CHECK_IN_RESULT);
     text('note', a.note);
     const p = getPerson(ctx, a.person_id);
+    requireActFor(ctx, p, 'check in for them');
     ctx.db.check_in.insert({
       id: 0n,
       client_id: a.client_id,
@@ -684,8 +793,26 @@ export const report_signal = spacetimedb.reducer(
   (ctx, { person_id, kind, value }) => {
     oneOf('kind', kind, SIGNAL_KIND);
     if (!Number.isFinite(value)) fail('value must be a finite number');
-    getPerson(ctx, person_id);
+    requireActFor(ctx, getPerson(ctx, person_id), 'report signals for them');
     ctx.db.signal.insert({ id: 0n, person_id, kind, value, created_at: ctx.timestamp });
+  }
+);
+
+// Geofence: a person's location moves them into an H3 cell. If that cell carries an alert
+// (set_cell_alert), log a geofence_entered signal once per entry. Staying in the cell, or
+// moving between unflagged cells, logs nothing.
+export const update_location = spacetimedb.reducer(
+  { person_id: t.u64(), lat: t.f64(), lng: t.f64() },
+  (ctx, { person_id, lat, lng }) => {
+    const p = getPerson(ctx, person_id);
+    requireActFor(ctx, p, 'update their location');
+    const h3 = cellFor(lat, lng);
+    const previous = p.h3_cell;
+    ctx.db.person.id.update({ ...p, last_lat: lat, last_lng: lng, h3_cell: h3 });
+    const cell = ctx.db.hex_cell.h3_cell.find(h3);
+    if (h3 !== previous && cell && cell.alert_level !== '') {
+      ctx.db.signal.insert({ id: 0n, person_id, kind: 'geofence_entered', value: 1, created_at: ctx.timestamp });
+    }
   }
 );
 
@@ -694,11 +821,26 @@ export const report_signal = spacetimedb.reducer(
 // ---------------------------------------------------------------------------
 
 function requireHelperOrAgent(ctx: Ctx, helperId: bigint) {
-  if (isWorker(ctx) || isOwner(ctx)) return;
+  if (isStaff(ctx)) return;
   const helper = ctx.db.person.id.find(helperId);
-  if (helper?.identity !== undefined && !helper.identity.isEqual(ctx.sender)) {
-    fail('only the assigned helper may answer this assignment');
+  // Fail closed: a missing helper or a helper with no identity can only be answered by staff.
+  if (!helper || !isSelf(ctx, helper)) fail('only the assigned helper may answer this assignment');
+}
+
+/**
+ * mark_safe may come from the person, staff, or a helper whose assignment for one of the
+ * person's active SOS events is accepted (the neighbor who is at the door).
+ */
+function isAcceptedHelperFor(ctx: Ctx, personId: bigint): boolean {
+  for (const s of ctx.db.sos_event.person_id.filter(personId)) {
+    if (!ACTIVE_SOS.includes(s.state)) continue;
+    for (const a of ctx.db.assignment.sos_id.filter(s.id)) {
+      if (a.state !== 'accepted') continue;
+      const helper = ctx.db.person.id.find(a.helper_id);
+      if (helper && isSelf(ctx, helper)) return true;
+    }
   }
+  return false;
 }
 
 export const accept_assignment = spacetimedb.reducer(
@@ -732,6 +874,9 @@ export const mark_safe = spacetimedb.reducer(
   (ctx, { person_id, note }) => {
     text('note', note);
     const p = getPerson(ctx, person_id);
+    if (!canActFor(ctx, p) && !isAcceptedHelperFor(ctx, person_id)) {
+      fail(`not allowed: only person ${person_id}, staff or their accepted helper may mark them safe`);
+    }
     ctx.db.person.id.update({
       ...p,
       status: 'safe',
@@ -755,6 +900,7 @@ export const mark_safe = spacetimedb.reducer(
         if (a.state === 'accepted') ctx.db.assignment.id.update({ ...a, state: 'done' });
       }
     }
+    audit(ctx, 'mark_safe', `person:${person_id}`);
   }
 );
 
@@ -837,6 +983,7 @@ export const save_incident_report = spacetimedb.reducer(
   (ctx, a) => {
     requireWorker(ctx);
     if (!a.h3_cell) fail('h3_cell is required');
+    text('h3_cell', a.h3_cell, 32);
     text('summary', a.summary, 8000);
     text('blocked_roads', a.blocked_roads);
     ctx.db.incident_report.insert({ id: 0n, ...a, created_at: ctx.timestamp });
@@ -887,6 +1034,7 @@ export const set_cell_alert = spacetimedb.reducer(
   (ctx, { h3_cell, alert_level }) => {
     requireWorker(ctx);
     if (!h3_cell) fail('h3_cell is required');
+    text('h3_cell', h3_cell, 32);
     text('alert_level', alert_level, 100);
     upsertCell(ctx, h3_cell, { alert_level });
   }
@@ -897,6 +1045,7 @@ export const set_cell_census = spacetimedb.reducer(
   (ctx, { h3_cell, census_elderly_estimate }) => {
     requireWorker(ctx);
     if (!h3_cell) fail('h3_cell is required');
+    text('h3_cell', h3_cell, 32);
     upsertCell(ctx, h3_cell, { census_elderly_estimate });
   }
 );
@@ -910,6 +1059,11 @@ export const set_cell_census = spacetimedb.reducer(
 // in audit_log and in the module log; the call itself does not error.
 // Exception: the call still errors when the caller passes malformed input.
 
+function isResident(ctx: Ctx, householdId: bigint): boolean {
+  for (const p of ctx.db.person.household_id.filter(householdId)) if (isSelf(ctx, p)) return true;
+  return false;
+}
+
 export const grant_key_pass = spacetimedb.reducer(
   { household_id: t.u64(), helper_id: t.u64(), sos_id: t.u64(), approved_by: t.string() },
   (ctx, { household_id, helper_id, sos_id, approved_by }) => {
@@ -921,11 +1075,19 @@ export const grant_key_pass = spacetimedb.reducer(
     if (!approved_by.trim()) return refuse('no_approval');
     text('approved_by', approved_by, 200);
     if (!ctx.db.household.id.find(household_id)) return refuse('no_household');
+    // Only someone who lives there (by identity) or staff (the worker relays a resident's
+    // approval from SMS/voice) may hand out a key. approved_by alone is just a label.
+    if (!isStaff(ctx) && !isResident(ctx, household_id)) return refuse('not_resident_or_staff');
     if (!ctx.db.person.id.find(helper_id)) return refuse('no_helper');
     const s = ctx.db.sos_event.id.find(sos_id);
     if (!s || !ACTIVE_SOS.includes(s.state)) return refuse('no_active_sos');
     const sosPerson = ctx.db.person.id.find(s.person_id);
     if (!sosPerson || sosPerson.household_id !== household_id) return refuse('sos_not_for_household');
+    // The key goes only to the neighbor who accepted this SOS.
+    const accepted = [...ctx.db.assignment.sos_id.filter(sos_id)].some(
+      a => a.helper_id === helper_id && a.state === 'accepted'
+    );
+    if (!accepted) return refuse('helper_not_accepted');
     const expires = addSecs(ctx.timestamp, getConfig(ctx).key_pass_ttl_secs);
     const kp = ctx.db.key_pass.insert({
       id: 0n,
@@ -955,15 +1117,15 @@ export const revoke_key_pass = spacetimedb.reducer(
       audit(ctx, 'revoke_key_pass_denied:not_found', target);
       return;
     }
-    // Owner = someone living in the household; approver = approved_by names the caller's
-    // identity; the module owner and the worker may also revoke.
+    // A resident of the household (by identity), the identity named in approved_by, the helper
+    // giving the key back, or owner / worker / staff.
     const sender = ctx.sender.toHexString();
-    const residents = [...ctx.db.person.household_id.filter(kp.household_id)];
+    const helper = ctx.db.person.id.find(kp.helper_id);
     const allowed =
-      isOwner(ctx) ||
-      isWorker(ctx) ||
+      isStaff(ctx) ||
       kp.approved_by === sender ||
-      residents.some(p => p.identity !== undefined && p.identity.isEqual(ctx.sender));
+      isResident(ctx, kp.household_id) ||
+      (!!helper && isSelf(ctx, helper));
     if (!allowed) {
       audit(ctx, 'revoke_key_pass_denied:not_owner_or_approver', target);
       return;
@@ -990,9 +1152,140 @@ export const log_unlock = spacetimedb.reducer(
       audit(ctx, 'log_unlock_denied:expired', target);
       return;
     }
+    // Only the helper holding the pass (or staff) can record an unlock; otherwise anyone could
+    // forge "helper X opened the door" entries.
+    const helper = ctx.db.person.id.find(kp.helper_id);
+    if (!isStaff(ctx) && !(helper && isSelf(ctx, helper))) {
+      audit(ctx, 'log_unlock_denied:not_helper', target);
+      return;
+    }
+    const s = ctx.db.sos_event.id.find(kp.sos_id);
+    if (!s || !ACTIVE_SOS.includes(s.state)) {
+      audit(ctx, 'log_unlock_denied:sos_not_active', target);
+      return;
+    }
     audit(ctx, 'log_unlock', `${target} household:${kp.household_id} helper:${kp.helper_id}`);
   }
 );
+
+// ---------------------------------------------------------------------------
+// Views (how clients read the private tables)
+//
+// ops_<table>: every row for the owner, the worker and staff; no rows for anyone else.
+//   The worker subscribes to these instead of the tables (agents/src/store/spacetime.ts).
+// my_<table>: only rows that belong to the caller's identity (people it registered, their
+//   households, SOS events and safety nets, plus the assignments, SOS events and key passes
+//   offered to people it registered as helpers). This is what a phone app subscribes to.
+// hex_cell stays a public table (aggregate counts, no personal data).
+// ---------------------------------------------------------------------------
+
+const NO_ROW = 0n; // auto_inc ids start at 1, so `id = 0` selects nothing
+
+export const ops_person = spacetimedb.view({ name: 'ops_person', public: true }, t.array(person.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.person : ctx.from.person.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_household = spacetimedb.view({ name: 'ops_household', public: true }, t.array(household.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.household : ctx.from.household.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_safety_net = spacetimedb.view({ name: 'ops_safety_net', public: true }, t.array(safety_net.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.safety_net : ctx.from.safety_net.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_sos_event = spacetimedb.view({ name: 'ops_sos_event', public: true }, t.array(sos_event.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.sos_event : ctx.from.sos_event.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_check_in = spacetimedb.view({ name: 'ops_check_in', public: true }, t.array(check_in_table.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.check_in : ctx.from.check_in.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_signal = spacetimedb.view({ name: 'ops_signal', public: true }, t.array(signal.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.signal : ctx.from.signal.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_triage = spacetimedb.view({ name: 'ops_triage', public: true }, t.array(triage.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.triage : ctx.from.triage.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_assignment = spacetimedb.view({ name: 'ops_assignment', public: true }, t.array(assignment.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.assignment : ctx.from.assignment.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_key_pass = spacetimedb.view({ name: 'ops_key_pass', public: true }, t.array(key_pass.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.key_pass : ctx.from.key_pass.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_incident_report = spacetimedb.view(
+  { name: 'ops_incident_report', public: true },
+  t.array(incident_report.rowType),
+  ctx => (isStaff(ctx) ? ctx.from.incident_report : ctx.from.incident_report.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_agent_step = spacetimedb.view({ name: 'ops_agent_step', public: true }, t.array(agent_step.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.agent_step : ctx.from.agent_step.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_audit_log = spacetimedb.view({ name: 'ops_audit_log', public: true }, t.array(audit_log.rowType), ctx =>
+  (isStaff(ctx) ? ctx.from.audit_log : ctx.from.audit_log.where(r => r.id.eq(NO_ROW))).build()
+);
+
+type ViewDb = { sender: Identity; db: { person: { iter(): Iterable<{ id: bigint; identity: Identity | undefined; household_id: bigint }> } } };
+
+/** Ids of the people the caller registered. */
+function myPersonIds(ctx: ViewDb): Set<bigint> {
+  const ids = new Set<bigint>();
+  for (const p of ctx.db.person.iter()) if (isSelf(ctx, p)) ids.add(p.id);
+  return ids;
+}
+
+export const my_person = spacetimedb.view({ name: 'my_person', public: true }, t.array(person.rowType), ctx =>
+  [...ctx.db.person.iter()].filter(p => isSelf(ctx, p))
+);
+
+export const my_household = spacetimedb.view({ name: 'my_household', public: true }, t.array(household.rowType), ctx => {
+  const ids = new Set<bigint>();
+  for (const p of ctx.db.person.iter()) if (isSelf(ctx, p)) ids.add(p.household_id);
+  return [...ids].map(id => ctx.db.household.id.find(id)).filter((h): h is NonNullable<typeof h> => h != null);
+});
+
+export const my_safety_net = spacetimedb.view({ name: 'my_safety_net', public: true }, t.array(safety_net.rowType), ctx => {
+  const out = [];
+  for (const id of myPersonIds(ctx)) out.push(...ctx.db.safety_net.owner_id.filter(id));
+  return out;
+});
+
+/** Assignments offered to the caller's people, and assignments on the caller's own SOS events. */
+export const my_assignment = spacetimedb.view({ name: 'my_assignment', public: true }, t.array(assignment.rowType), ctx => {
+  const mine = myPersonIds(ctx);
+  const out = new Map<bigint, Infer<typeof assignment.rowType>>();
+  for (const id of mine) {
+    for (const a of ctx.db.assignment.helper_id.filter(id)) out.set(a.id, a);
+    for (const s of ctx.db.sos_event.person_id.filter(id)) {
+      for (const a of ctx.db.assignment.sos_id.filter(s.id)) out.set(a.id, a);
+    }
+  }
+  return [...out.values()];
+});
+
+/** The caller's own SOS events, and SOS events a person they registered was offered or accepted. */
+export const my_sos_event = spacetimedb.view({ name: 'my_sos_event', public: true }, t.array(sos_event.rowType), ctx => {
+  const mine = myPersonIds(ctx);
+  const out = new Map<bigint, Infer<typeof sos_event.rowType>>();
+  for (const id of mine) {
+    for (const s of ctx.db.sos_event.person_id.filter(id)) out.set(s.id, s);
+    for (const a of ctx.db.assignment.helper_id.filter(id)) {
+      if (a.state !== 'offered' && a.state !== 'accepted') continue;
+      const s = ctx.db.sos_event.id.find(a.sos_id);
+      if (s && ACTIVE_SOS.includes(s.state)) out.set(s.id, s);
+    }
+  }
+  return [...out.values()];
+});
+
+/** Key passes held by the caller's people, and key passes to the caller's households. */
+export const my_key_pass = spacetimedb.view({ name: 'my_key_pass', public: true }, t.array(key_pass.rowType), ctx => {
+  const out = new Map<bigint, Infer<typeof key_pass.rowType>>();
+  const households = new Set<bigint>();
+  for (const p of ctx.db.person.iter()) {
+    if (!isSelf(ctx, p)) continue;
+    households.add(p.household_id);
+  }
+  for (const hh of households) for (const k of ctx.db.key_pass.household_id.filter(hh)) out.set(k.id, k);
+  const mine = myPersonIds(ctx);
+  for (const k of ctx.db.key_pass.iter()) if (mine.has(k.helper_id)) out.set(k.id, k);
+  return [...out.values()];
+});
 
 // ---------------------------------------------------------------------------
 // Scheduled
