@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { COMMS, fmtTime, homes } from '../sim/world';
-import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type ActionKind, type AgentLine } from '../state/store';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { COMMS, fmtTime, homes, type Status } from '../sim/world';
+import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type ActionKind, type AgentLine, type Resident } from '../state/store';
 import { SPACETIME_DB, SPACETIME_HOST, clearFlood, markHouseholdSafe, requestAction, signIn, signOut, startFlood } from '../data/live';
 
 export function Wordmark() {
@@ -293,6 +294,68 @@ const STEP_LABEL: Record<string, string> = { thought: 'thought', tool_call: 'too
 const ASSIGN_LABEL: Record<string, string> = { offered: 'Offered', accepted: 'Accepted', declined: 'Declined', timed_out: 'Timed out', done: 'Done' };
 const ASSIGN_COLOR: Record<string, string> = { offered: STATUS_COLOR.unknown, accepted: STATUS_COLOR.enroute, declined: STATUS_COLOR.p2, timed_out: STATUS_COLOR.p1, done: STATUS_COLOR.safe };
 
+/** Every agent step for one household, full text, live: thoughts, tool calls, results, decisions. */
+function ReasoningModal({ r, status, onClose }: { r: Resident; status: Status; onClose: () => void }) {
+  const end = useRef<HTMLLIElement>(null);
+  const [filter, setFilter] = useState<'all' | 'decision'>('all');
+  useEffect(() => {
+    // Capture phase so Escape closes the pop-up, not the household card behind it.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+  const steps = filter === 'all' ? r.reasoning : r.reasoning.filter((e) => e.kind === 'decision');
+  useEffect(() => end.current?.scrollIntoView({ block: 'end' }), [steps.length]);
+  const agents = [...new Set(r.reasoning.map((e) => agentName(e.agent)))];
+  return createPortal(
+    <div className="rmodal-back" onClick={onClose}>
+      <section className="panel rmodal" role="dialog" aria-modal="true" aria-label={`Nemotron reasoning for ${r.name}`} onClick={(e) => e.stopPropagation()}>
+        <header className="rmodal-head">
+          <div style={{ minWidth: 0 }}>
+            <div className="label">
+              <span className="tag" style={{ background: STATUS_COLOR[status] }}>{CODE[status]}</span> Nemotron reasoning · live
+            </div>
+            <div className="name nc">{r.name}, {r.age} · {r.address}</div>
+            <div className="sub nc">{agents.join(' → ')} · {r.reasoning.length} steps</div>
+          </div>
+          <button className="esc" onClick={onClose} aria-label="Close reasoning">ESC</button>
+        </header>
+        {r.triage && (
+          <div className="rmodal-sum nc">
+            <b style={{ color: r.triage.urgency >= 4 ? STATUS_COLOR.p1 : STATUS_COLOR.p2 }}>Urgency {r.triage.urgency}/5</b> · {r.triage.priority} · needs {r.triage.needs} · conf{' '}
+            {r.triage.confidence.toFixed(2)}
+            <div>{r.triage.reason}</div>
+          </div>
+        )}
+        <div className="rmodal-tabs">
+          <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>Every step</button>
+          <button className={filter === 'decision' ? 'on' : ''} onClick={() => setFilter('decision')}>Decisions only</button>
+        </div>
+        <ol className="rmodal-steps">
+          {steps.length === 0 && <li className="nc">No steps yet.</li>}
+          {steps.map((e, i) => (
+            <li key={i} className={`nc k-${e.kind}`} ref={i === steps.length - 1 ? end : undefined}>
+              <div className="meta">
+                <time>{fmtTime(e.at)}</time>
+                <span className="who">{agentName(e.agent)}</span>
+                <span className={`kind k-${e.kind}`}>{STEP_LABEL[e.kind] ?? e.kind}</span>
+                {e.conf !== null && <span className="conf">conf {e.conf.toFixed(2)}</span>}
+              </div>
+              <div className="body">{e.full ?? e.text}</div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 export function HouseholdCard() {
   const id = useMap((s) => s.selectedId);
   const residents = useMap((s) => s.residents);
@@ -302,13 +365,24 @@ export function HouseholdCard() {
   const [note, setNote] = useState('');
   const [showReasoning, setShowReasoning] = useState(false);
   const viewer = useMap((s) => s.liveInfo.viewer);
+  const p = id === null ? undefined : homes.find((h) => h.id === id);
+  const r = p ? residents[p.idx] : null;
+  // A P1 household opens its reasoning by itself, once per selection, as soon as there is any.
+  const autoFor = useRef<number | null>(null);
+  const isP1 = !!p && statuses[p.idx] === 'p1';
+  const hasReasoning = !!r && r.reasoning.length > 0;
   useEffect(() => {
     setNote('');
     setShowReasoning(false);
+    autoFor.current = null;
   }, [id]);
-  const p = id === null ? undefined : homes.find((h) => h.id === id);
+  useEffect(() => {
+    if (id !== null && isP1 && hasReasoning && autoFor.current !== id) {
+      autoFor.current = id;
+      setShowReasoning(true);
+    }
+  }, [id, isP1, hasReasoning]);
   if (!p) return null;
-  const r = residents[p.idx];
 
   if (!r) {
     return (
@@ -500,24 +574,25 @@ export function HouseholdCard() {
       </div>
       <div className="sect">
         <div className="label loghead">
-          {showReasoning ? `Agent reasoning · ${r.reasoning.length}` : `Agent log · ${r.log.length}`}
+          {`Agent log · ${r.log.length}`}
           {r.reasoning.length > 0 && (
-            <button className="linkbtn" onClick={() => setShowReasoning(!showReasoning)} aria-pressed={showReasoning}>
-              {showReasoning ? 'Show log' : 'Show reasoning'}
+            <button className="linkbtn" onClick={() => setShowReasoning(true)} aria-haspopup="dialog">
+              Show reasoning · {r.reasoning.length}
             </button>
           )}
         </div>
         <ol className="log">
-          {(showReasoning ? r.reasoning : r.log).length === 0 && <li className="nc">No events yet for this household.</li>}
-          {(showReasoning ? r.reasoning : r.log).map((e, i) => (
+          {r.log.length === 0 && <li className="nc">No events yet for this household.</li>}
+          {r.log.map((e, i) => (
             <li key={i} className={`nc k-${e.kind}`}>
               <time>{fmtTime(e.at)}</time>
-              {agentName(e.agent)}{showReasoning ? ` · ${STEP_LABEL[e.kind] ?? e.kind}` : ''}: {e.text}
+              {agentName(e.agent)}: {e.text}
               {e.conf !== null && <span className="conf"> conf {e.conf.toFixed(2)}</span>}
             </li>
           ))}
         </ol>
       </div>
+      {showReasoning && <ReasoningModal r={r} status={s} onClose={() => setShowReasoning(false)} />}
       <div className="actions">
         {btn('respond', 'Let Nemotron decide', 'triage + dispatch', 'btn primary')}
         {btn('call', 'Call now', 'automated voice', 'btn warm')}

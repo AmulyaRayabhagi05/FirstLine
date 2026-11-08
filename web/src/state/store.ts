@@ -12,6 +12,8 @@ export interface AgentLine {
   conf: number | null;
   subject: string;
   homeIdx: number | null;
+  /** The untruncated step text (the reasoning pop-up shows it). */
+  full?: string;
 }
 
 /** The household shown on a map home, built from SpacetimeDB rows. */

@@ -171,6 +171,7 @@ function snapshot(conn: DbConnection) {
       agent: s.agent,
       kind: s.kind,
       text: s.content.length > 220 ? `${s.content.slice(0, 217)}…` : s.content,
+      full: s.content,
       conf: s.confidence ?? null,
       subject: s.subject,
       homeIdx: homeOfSubject(s.subject),
