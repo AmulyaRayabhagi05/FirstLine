@@ -24,7 +24,16 @@ export interface AssistantReply {
   say: string;
   lang: CallLang;
   hangup?: boolean;
+  /** Words speech recognition should expect next (names on the call, key terms). */
+  hints?: string[];
 }
+
+// Terms callers use on this line; Twilio biases recognition toward them.
+const BASE_HINTS = [
+  "FirstLine", "who needs help", "help first", "priority one", "P1", "SOS", "neighbor", "safety net",
+  "escalate", "responder", "generator", "carbon monoxide", "hypothermia", "cold", "no heat", "flood",
+  "water", "pipes", "oxygen", "medical device", "shelter", "warming center", "blankets", "bye",
+];
 
 export interface VoiceAssistant {
   greet(call: { callSid: string; from: string }): Promise<AssistantReply>;
@@ -55,13 +64,18 @@ function converseUrl(cfg: TwilioConfig, turn: number, lang: CallLang, empty = 0)
 }
 
 /** Say `text`, then listen for the caller's next sentence. */
-export function speakAndListen(cfg: TwilioConfig, text: string, lang: CallLang, turn: number, empty = 0): string {
+export function speakAndListen(cfg: TwilioConfig, text: string, lang: CallLang, turn: number, empty = 0, hints: string[] = []): string {
   const v = VOICE[lang];
   const r = new twilio.twiml.VoiceResponse();
   const g = r.gather({
     input: ["speech", "dtmf"],
-    speechTimeout: "auto",
-    timeout: 7,
+    // Phone-call model with a 2 s end-of-speech pause: "auto" cut callers off mid-sentence.
+    speechModel: "phone_call" as never,
+    enhanced: true,
+    speechTimeout: "2" as never,
+    hints: [...new Set([...hints, ...BASE_HINTS])].join(", ").slice(0, 1000),
+    profanityFilter: false,
+    timeout: 8,
     language: v.speech as never,
     actionOnEmptyResult: true,
     action: converseUrl(cfg, turn, lang, empty),
@@ -84,7 +98,7 @@ const BYE = /\b(bye|goodbye|that'?s all|nothing else|hang up|adi[oó]s|eso es to
 export async function handleInboundCall(assistant: VoiceAssistant | undefined, cfg: TwilioConfig, p: { callSid: string; from: string }): Promise<string> {
   if (!assistant) return speakAndHangup("This is FirstLine. If this is an emergency, hang up and call 9 1 1.", "en");
   const g = await assistant.greet(p);
-  return speakAndListen(cfg, g.say, g.lang, 1);
+  return speakAndListen(cfg, g.say, g.lang, 1, 0, g.hints);
 }
 
 export async function handleConverse(
@@ -102,5 +116,5 @@ export async function handleConverse(
   if (BYE.test(text) && text.split(/\s+/).length <= 6) return speakAndHangup(VOICE[lang].bye, lang);
   const r = await assistant.reply({ callSid: p.callSid, from: p.from, text, turn: p.turn });
   if (r.hangup || p.turn >= MAX_TURNS) return speakAndHangup(`${r.say} ${VOICE[r.lang].bye}`, r.lang);
-  return speakAndListen(cfg, r.say, r.lang, p.turn + 1);
+  return speakAndListen(cfg, r.say, r.lang, p.turn + 1, 0, r.hints);
 }
