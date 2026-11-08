@@ -252,46 +252,95 @@ function FloodControls() {
   );
 }
 
-// Left panel: incident reports the reports agent writes per res-8 cell.
+const hasBlocked = (roads: string) => !!roads && !/^(none|no blocked roads?)\.?$/i.test(roads.trim());
+
+// Left panel: incident reports the reports agent writes per res-8 cell. Clicking one opens them
+// all in a larger, scrollable pop-up, starting at the one clicked.
 export function IncidentReports() {
   const reports = useMap((s) => s.reports);
   const wave = useMap((s) => s.liveInfo.wave);
   const [open, setOpen] = useState(true);
+  const [viewing, setViewing] = useState<string | null>(null); // id of the report the pop-up opened on
   if (reports.length === 0 && !wave) return null;
   const all = wave && wave.triaged >= wave.people;
   return (
-    <section className="panel reports" aria-label="Incident reports">
-      {wave && (
-        <div className="wavestat">
-          <div className="big">
-            {all ? (
-              <>All <b>{wave.people}</b> at-risk people triaged in <b>{wave.minutes} min</b></>
-            ) : (
-              <><b>{wave.triaged}</b> of {wave.people} at-risk people triaged · {wave.minutes} min so far</>
-            )}
+    <>
+      <section className="panel reports" aria-label="Incident reports">
+        {wave && (
+          <div className="wavestat">
+            <div className="big">
+              {all ? (
+                <>All <b>{wave.people}</b> at-risk people triaged in <b>{wave.minutes} min</b></>
+              ) : (
+                <><b>{wave.triaged}</b> of {wave.people} at-risk people triaged · {wave.minutes} min so far</>
+              )}
+            </div>
+            <div className="small nc">
+              {wave.neighbors} neighbors sent · {wave.escalated} escalated to responders · by Nemotron, no one clicking
+            </div>
+            <div className="small nc muted">Harvey, 2017: high-water rescue waits passed 20 hours (Houston Chronicle review of 120,000 911 calls).</div>
           </div>
-          <div className="small nc">
-            {wave.neighbors} neighbors sent · {wave.escalated} escalated to responders · by Nemotron, no one clicking
-          </div>
-          <div className="small nc muted">Harvey, 2017: high-water rescue waits passed 20 hours (Houston Chronicle review of 120,000 911 calls).</div>
+        )}
+        <div className="rhead">
+          <button onClick={() => setOpen(!open)} aria-expanded={open}>
+            Incident reports · {reports.length} <span>{open ? '−' : '+'}</span>
+          </button>
+          {reports.length > 0 && <button className="rview" onClick={() => setViewing(reports[0].id)}>View all</button>}
         </div>
-      )}
-      <button className="rhead" onClick={() => setOpen(!open)} aria-expanded={open}>
-        Incident reports · {reports.length} <span>{open ? '−' : '+'}</span>
-      </button>
-      {open && (
-        <ol className="log">
-          {reports.slice(0, 8).map((r) => (
-            <li key={r.id} className="nc">
-              <time>{fmtTime(r.at)}</time>
-              <b style={{ color: STATUS_COLOR.p1 }}>{r.p1} P1</b> · <b style={{ color: STATUS_COLOR.p2 }}>{r.p2} P2</b> · {r.unknown} unknown
-              <div>{r.summary}</div>
-              {r.blockedRoads && !/^(none|no blocked roads?)\.?$/i.test(r.blockedRoads.trim()) && <div className="muted">Blocked: {r.blockedRoads}</div>}
+        {open && (
+          <ol className="log">
+            {reports.slice(0, 8).map((r) => (
+              <li key={r.id} className="nc">
+                <button className="ritem" onClick={() => setViewing(r.id)} title="Open this report">
+                  <time>{fmtTime(r.at)}</time>
+                  <b style={{ color: STATUS_COLOR.p1 }}>{r.p1} P1</b> · <b style={{ color: STATUS_COLOR.p2 }}>{r.p2} P2</b> · {r.unknown} unknown
+                  <div className="rclip">{r.summary}</div>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+      {viewing && <ReportsDialog startId={viewing} onClose={() => setViewing(null)} />}
+    </>
+  );
+}
+
+function ReportsDialog({ startId, onClose }: { startId: string; onClose: () => void }) {
+  const reports = useMap((s) => s.reports);
+  // Scroll to the clicked report once; live updates don't move the reader.
+  useEffect(() => {
+    document.getElementById(`report-${startId}`)?.scrollIntoView({ block: 'start' });
+    document.getElementById('reports-close')?.focus();
+  }, [startId]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="irep-back" onClick={onClose}>
+      <div className="panel irep" role="dialog" aria-modal="true" aria-labelledby="reports-title" onClick={(e) => e.stopPropagation()}>
+        <header className="irep-head">
+          <h2 id="reports-title">Incident reports · {reports.length}</h2>
+          <button id="reports-close" className="btn" onClick={onClose}>Close ✕</button>
+        </header>
+        <ol className="irep-list">
+          {reports.map((r) => (
+            <li key={r.id} id={`report-${r.id}`} className={r.id === startId ? 'on' : undefined}>
+              <div className="irep-meta">
+                <time>{fmtTime(r.at)}</time>
+                <span style={{ color: STATUS_COLOR.p1 }}>{r.p1} P1</span>
+                <span style={{ color: STATUS_COLOR.p2 }}>{r.p2} P2</span>
+                <span style={{ color: STATUS_COLOR.unknown }}>{r.unknown} unknown</span>
+              </div>
+              <p>{r.summary}</p>
+              {hasBlocked(r.blockedRoads) && <p className="irep-blocked">Blocked roads: {r.blockedRoads}</p>}
             </li>
           ))}
         </ol>
-      )}
-    </section>
+      </div>
+    </div>
   );
 }
 
