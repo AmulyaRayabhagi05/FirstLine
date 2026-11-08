@@ -655,6 +655,43 @@ export const set_timing = spacetimedb.reducer(
 );
 
 /** Owner or worker: recount hex cells immediately (the 30 s timer does this too). */
+// After the event: delete what the night recorded about people. Owner only, and the confirm
+// phrase must match so nobody wipes a live event by accident. With include_people the residents,
+// households and safety nets go too (nothing personal is left); without it they stay registered
+// and are reset to "unknown" for the next event. The audit log keeps one row saying it happened.
+const PURGE_PHRASE = 'DELETE EVENT DATA';
+
+export const purge_event = spacetimedb.reducer(
+  { confirm: t.string(), include_people: t.bool() },
+  (ctx, { confirm, include_people }) => {
+    if (!isOwner(ctx)) fail('only the database owner may delete event data');
+    if (confirm !== PURGE_PHRASE) fail(`confirm must be exactly "${PURGE_PHRASE}"`);
+    let n = 0;
+    for (const r of [...ctx.db.assignment_timeout_schedule.iter()]) ctx.db.assignment_timeout_schedule.scheduled_id.delete(r.scheduled_id);
+    for (const r of [...ctx.db.key_pass_expiry_schedule.iter()]) ctx.db.key_pass_expiry_schedule.scheduled_id.delete(r.scheduled_id);
+    for (const r of [...ctx.db.sos_event.iter()]) { ctx.db.sos_event.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.check_in.iter()]) { ctx.db.check_in.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.signal.iter()]) { ctx.db.signal.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.triage.iter()]) { ctx.db.triage.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.assignment.iter()]) { ctx.db.assignment.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.key_pass.iter()]) { ctx.db.key_pass.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.incident_report.iter()]) { ctx.db.incident_report.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.agent_step.iter()]) { ctx.db.agent_step.id.delete(r.id); n++; }
+    for (const r of [...ctx.db.action_request.iter()]) { ctx.db.action_request.id.delete(r.id); n++; }
+    if (include_people) {
+      for (const r of [...ctx.db.safety_net.iter()]) { ctx.db.safety_net.id.delete(r.id); n++; }
+      for (const r of [...ctx.db.person.iter()]) { ctx.db.person.id.delete(r.id); n++; }
+      for (const r of [...ctx.db.household.iter()]) { ctx.db.household.id.delete(r.id); n++; }
+    } else {
+      for (const p of [...ctx.db.person.iter()]) {
+        ctx.db.person.id.update({ ...p, status: 'unknown', priority: 'unknown', priority_score: 0, last_seen: undefined });
+      }
+    }
+    for (const c of [...ctx.db.hex_cell.iter()]) ctx.db.hex_cell.h3_cell.update({ ...c, alert_level: '' });
+    audit(ctx, 'purge_event', `${n} rows deleted${include_people ? ', people included' : ''}`);
+  }
+);
+
 export const recount_now = spacetimedb.reducer(ctx => {
   if (!isOwner(ctx) && !isWorker(ctx)) fail('only the owner or worker may force a recount');
   recount(ctx);

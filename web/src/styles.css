@@ -276,3 +276,11 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
 @keyframes rm-fade { from { opacity: 0; } }
 @keyframes rm-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
 @media (prefers-reduced-motion: reduce) { .rmodal-back, .rmodal { animation: none; } }
+
+/* Live response stat (top of the reports panel) and the privacy line */
+.wavestat { padding: 12px 14px; border-bottom: 2px solid var(--border); background: rgba(79, 224, 143, 0.06); }
+.wavestat .big { font-size: 13px; line-height: 1.35; color: var(--cream); }
+.wavestat .big b { color: var(--safe); }
+.wavestat .small { font-size: 11px; line-height: 1.4; margin-top: 6px; color: var(--warm); }
+.wavestat .muted { color: var(--muted); }
+.livebar .privacy { font-size: 10px; color: var(--muted); margin-top: 4px; }

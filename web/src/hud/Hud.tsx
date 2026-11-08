@@ -211,6 +211,7 @@ export function LiveBar() {
           {info.activeKeyPasses > 0 && <span>{info.activeKeyPasses} key passes</span>}
           <span>{ago === null ? '—' : `updated ${ago}s ago`}</span>
         </div>
+        <div className="privacy nc">Opt-in only. Phones and health details are staff-only. Everything is deleted after the event.</div>
       </div>
       <FloodControls />
     </section>
@@ -254,10 +255,27 @@ function FloodControls() {
 // Left panel: incident reports the reports agent writes per res-8 cell.
 export function IncidentReports() {
   const reports = useMap((s) => s.reports);
+  const wave = useMap((s) => s.liveInfo.wave);
   const [open, setOpen] = useState(true);
-  if (reports.length === 0) return null;
+  if (reports.length === 0 && !wave) return null;
+  const all = wave && wave.triaged >= wave.people;
   return (
     <section className="panel reports" aria-label="Incident reports">
+      {wave && (
+        <div className="wavestat">
+          <div className="big">
+            {all ? (
+              <>All <b>{wave.people}</b> at-risk people triaged in <b>{wave.minutes} min</b></>
+            ) : (
+              <><b>{wave.triaged}</b> of {wave.people} at-risk people triaged · {wave.minutes} min so far</>
+            )}
+          </div>
+          <div className="small nc">
+            {wave.neighbors} neighbors sent · {wave.escalated} escalated to responders · by Nemotron, no one clicking
+          </div>
+          <div className="small nc muted">Harvey, 2017: high-water rescue waits passed 20 hours (Houston Chronicle review of 120,000 911 calls).</div>
+        </div>
+      )}
       <button className="rhead" onClick={() => setOpen(!open)} aria-expanded={open}>
         Incident reports · {reports.length} <span>{open ? '−' : '+'}</span>
       </button>
