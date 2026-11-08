@@ -20,5 +20,8 @@
 		}
 		@assets path /assets/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
+		# The page itself is always re-checked, so a deploy shows up on the next reload.
+		@page not path /assets/*
+		header @page Cache-Control "no-cache"
 	}
 }

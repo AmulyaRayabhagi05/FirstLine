@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { CityCanvas } from './scene/CityCanvas';
+import { ErrorBoundary } from './hud/ErrorBoundary';
 import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, IncidentReports, Intro, LiveBar, SignIn, Toolbar } from './hud/Hud';
 import { Minimap } from './hud/Minimap';
 import { useMap } from './state/store';
@@ -39,7 +40,9 @@ export default function App() {
           {selected === null ? <CounterBadge /> : <BackButton />}
           <Toolbar />
           <DecisionTicker />
-          <HouseholdCard />
+          <ErrorBoundary label="Household card" resetKey={selected} onReset={() => useMap.getState().select(null)}>
+            <HouseholdCard />
+          </ErrorBoundary>
           <LiveBar />
           {selected === null && <IncidentReports />}
           <Minimap />
