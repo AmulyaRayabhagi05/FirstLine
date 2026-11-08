@@ -6,13 +6,16 @@
 //   spacetime start                 # in another terminal
 //   cd server && npm install && node test/smoke.mjs
 //
-// Env: STDB_SERVER (default "local"), STDB_DB (default "firstline-smoke"), SKIP_PUBLISH=1.
+// Env: STDB_SERVER (default "local"), STDB_HOST (default http://127.0.0.1:3000, used for the
+// extra "phone" identities in the authorization checks), STDB_DB (default "firstline-smoke"),
+// SKIP_PUBLISH=1.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { latLngToCell } from 'h3-js';
 
 const SERVER = process.env.STDB_SERVER ?? 'local';
+const HOST = (process.env.STDB_HOST ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
 const DB = process.env.STDB_DB ?? 'firstline-smoke';
 const MODULE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -68,6 +71,46 @@ function mustOk(reducer, args, opts) {
 function mustFail(name, reducer, args, opts) {
   const r = call(reducer, args, opts);
   check(name, r.code !== 0, r.code === 0 ? 'call succeeded' : '');
+}
+
+// ---- extra identities over HTTP (a phone is just another identity with its own token) ----
+async function newIdentity() {
+  const res = await fetch(`${HOST}/v1/identity`, { method: 'POST' });
+  if (!res.ok) throw new Error(`POST /v1/identity: ${res.status}`);
+  const { identity, token } = await res.json();
+  return { hex: identity.replace(/^0x/, ''), token };
+}
+
+async function callAs(who, reducer, args = []) {
+  const res = await fetch(`${HOST}/v1/database/${DB}/call/${reducer}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${who.token}`, 'content-type': 'application/json' },
+    body: j(args),
+  });
+  return { ok: res.ok, text: await res.text() };
+}
+
+/** Rows as objects, or null when the query is refused (e.g. a private table). */
+async function sqlAs(who, query) {
+  const res = await fetch(`${HOST}/v1/database/${DB}/sql`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${who.token}`, 'content-type': 'text/plain' },
+    body: query,
+  });
+  if (!res.ok) return null;
+  const [stmt] = await res.json();
+  const cols = stmt.schema.elements.map(e => e.name?.some ?? e.name);
+  return stmt.rows.map(row => Object.fromEntries(cols.map((c, i) => [c, row[i]])));
+}
+
+async function okAs(who, reducer, args) {
+  const r = await callAs(who, reducer, args);
+  if (!r.ok) throw new Error(`${reducer} failed unexpectedly: ${r.text}`);
+}
+
+async function failAs(name, who, reducer, args, match = /not allowed|only|reserved/) {
+  const r = await callAs(who, reducer, args);
+  check(name, !r.ok && match.test(r.text), r.ok ? 'call succeeded' : r.text.slice(0, 200));
 }
 
 const count = (table, where = '') => sql(`SELECT * FROM ${table}${where ? ` WHERE ${where}` : ''}`).length;
@@ -130,7 +173,7 @@ async function main() {
   mustFail('worker reducer before worker is set', 'log_agent_step', ['triage', 'sos:1', 'thought', 'x', none]);
   mustFail('non-owner cannot set worker', 'set_worker_identity', [me], { anonymous: true });
   mustOk('set_worker_identity', [me]); // in the test, the CLI identity plays the worker
-  mustFail('set_worker_identity only once', 'set_worker_identity', [me]);
+  mustOk('set_worker_identity', [me]); // the owner may replace the worker (token rotation)
   mustFail('non-worker save_triage fails', 'save_triage', [some(1), ANN, 5, 0.9, 'professional', 'P1', 'oxygen', 'nemotron'], { anonymous: true });
   mustFail('non-worker assign_helper fails', 'assign_helper', [1, BOB, 1], { anonymous: true });
   mustFail('non-worker log_agent_step fails', 'log_agent_step', ['triage', 'sos:1', 'thought', 'x', none], { anonymous: true });
@@ -215,6 +258,8 @@ async function main() {
   mustOk('save_incident_report', [annCell.slice(0, 15), 'Flooding near Elm St', 'Elm St', 1, 0, 2]);
   check('incident report stored', count('incident_report') === 1);
 
+  await authorization();
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log(`failed: ${failures.join('; ')}`);
@@ -226,3 +271,107 @@ main().catch(e => {
   console.error(e.message ?? e);
   process.exit(1);
 });
+
+// Phones are separate identities. They see only their own rows and may act only for the people
+// they registered; a stranger cannot read private tables, mark someone safe, answer someone
+// else's assignment, hand out or use a key pass, or call owner/worker reducers.
+async function authorization() {
+  console.log('authorization (separate identities over HTTP)');
+  mustOk('set_timing', [600, 600]); // keep offers alive while the phones answer
+  const phone = await newIdentity(); // Dee's phone
+  const helperPhone = await newIdentity(); // Hal's phone
+  const stranger = await newIdentity();
+
+  check('stranger cannot read private person table', (await sqlAs(stranger, 'SELECT * FROM person')) === null);
+  check('stranger cannot read private household table', (await sqlAs(stranger, 'SELECT * FROM household')) === null);
+  check('stranger cannot read private key_pass table', (await sqlAs(stranger, 'SELECT * FROM key_pass')) === null);
+  check('stranger cannot read private audit_log table', (await sqlAs(stranger, 'SELECT * FROM audit_log')) === null);
+  check('stranger sees no rows in ops_person', (await sqlAs(stranger, 'SELECT * FROM ops_person'))?.length === 0);
+  check('stranger sees no rows in ops_audit_log', (await sqlAs(stranger, 'SELECT * FROM ops_audit_log'))?.length === 0);
+  check('hex_cell stays public', ((await sqlAs(stranger, 'SELECT * FROM hex_cell'))?.length ?? 0) > 0);
+  check('owner/worker sees every person in ops_person', count('ops_person') === count('person'));
+
+  const dee = [32.9871, -96.7512];
+  await okAs(phone, 'register_person', ['Dee Park', 77, true, 'limited', 'insulin', false, true, 'en', '555-0104', '5 Elm St', ...dee]);
+  await okAs(helperPhone, 'register_person', ['Hal Ruiz', 33, false, 'ok', '', false, true, 'en', '555-0105', '7 Elm St', 32.9875, -96.7509]);
+  const DEE = Number(sql("SELECT * FROM person WHERE name = 'Dee Park'")[0]?.id);
+  const HAL = Number(sql("SELECT * FROM person WHERE name = 'Hal Ruiz'")[0]?.id);
+  const DEE_HH = Number(sql(`SELECT * FROM person WHERE id = ${DEE}`)[0]?.household_id);
+  const ANN = 1;
+  const mine = await sqlAs(phone, 'SELECT * FROM my_person');
+  check('phone sees only its own person in my_person', mine?.length === 1 && Number(mine[0].id) === DEE, j(mine));
+  check('phone sees its household in my_household', (await sqlAs(phone, 'SELECT * FROM my_household'))?.length === 1);
+  check('phone sees nothing in ops_person', (await sqlAs(phone, 'SELECT * FROM ops_person'))?.length === 0);
+
+  // Acting for someone else.
+  await failAs('stranger cannot mark someone safe', stranger, 'mark_safe', [DEE, 'fake']);
+  await failAs('stranger cannot press SOS for someone else', stranger, 'press_sos', ['x-1', DEE, 'fake', ...dee, 'app']);
+  await failAs('stranger cannot check in someone else', stranger, 'check_in', ['x-2', DEE, 'app', 'safe', 'fake']);
+  await failAs('stranger cannot report signals for someone else', stranger, 'report_signal', [DEE, 'power_out', 1]);
+  await failAs("stranger cannot change someone's safety net", stranger, 'set_safety_net', [DEE, [{ member_id: HAL, ring: 1, skills: '' }]]);
+  await failAs('phone cannot press SOS for another person', phone, 'press_sos', ['x-3', ANN, 'fake', ...dee, 'app']);
+  await failAs('phone cannot use reserved sms: client_id', phone, 'press_sos', ['sms:SMfuture', DEE, 'help', ...dee, 'app']);
+  await failAs('stranger cannot add staff', stranger, 'add_staff', [[`0x${stranger.hex}`]]);
+  await failAs('stranger cannot set the worker identity', stranger, 'set_worker_identity', [[`0x${stranger.hex}`]]); // HTTP JSON: Identity is a 1-tuple
+  await failAs('stranger cannot change timing', stranger, 'set_timing', [1, 1]);
+  await failAs('stranger cannot force a recount', stranger, 'recount_now', []);
+  await failAs('stranger cannot save triage', stranger, 'save_triage', [none, DEE, 1, 0.9, 'neighbor', 'P3', 'fake', 'm']);
+  await failAs('stranger cannot set priority', stranger, 'set_priority', [DEE, 'safe', 0]);
+
+  // The phone acting for its own person works.
+  await okAs(phone, 'set_safety_net', [DEE, [{ member_id: HAL, ring: 1, skills: 'truck' }]]);
+  await okAs(phone, 'press_sos', ['dee-sos-1', DEE, 'Cannot get insulin, power out', ...dee, 'app']);
+  const deeSos = Number(sql("SELECT * FROM sos_event WHERE client_id = 'dee-sos-1'")[0]?.id);
+  check('phone pressed SOS for its own person', deeSos > 0);
+  check('phone sees its SOS in my_sos_event', (await sqlAs(phone, 'SELECT * FROM my_sos_event'))?.length === 1);
+  await failAs('client_id reused for another person is refused', stranger, 'press_sos', ['dee-sos-1', ANN, 'x', ...dee, 'app'], /already used|not allowed/);
+
+  // Helper flow: the worker offers, only the helper's identity can answer.
+  mustOk('assign_helper', [deeSos, HAL, 1]);
+  const offer = Number(sql(`SELECT * FROM assignment WHERE sos_id = ${deeSos}`)[0]?.id);
+  check('helper sees the offered SOS in my_sos_event', !!(await sqlAs(helperPhone, 'SELECT * FROM my_sos_event'))?.some(r => Number(r.id) === deeSos));
+  check('helper sees the offer in my_assignment', !!(await sqlAs(helperPhone, 'SELECT * FROM my_assignment'))?.some(r => Number(r.id) === offer));
+  await failAs("stranger cannot accept someone else's assignment", stranger, 'accept_assignment', [offer]);
+  await failAs("stranger cannot decline someone else's assignment", stranger, 'decline_assignment', [offer]);
+  await failAs('helper cannot mark safe before accepting', helperPhone, 'mark_safe', [DEE, 'early']);
+  await okAs(helperPhone, 'accept_assignment', [offer]);
+  check('helper accepted', sql(`SELECT * FROM assignment WHERE id = ${offer}`)[0]?.state === 'accepted');
+
+  // Key pass: only a resident (or staff) can grant, only to the accepted helper; only the
+  // helper (or staff) can log an unlock.
+  const kpBefore = count('key_pass');
+  await okAs(stranger, 'grant_key_pass', [DEE_HH, HAL, deeSos, 'Dee Park']);
+  check('stranger grant -> no key pass', count('key_pass') === kpBefore);
+  await okAs(phone, 'grant_key_pass', [DEE_HH, DEE, deeSos, 'Dee Park']);
+  check('grant to someone who did not accept -> no key pass', count('key_pass') === kpBefore);
+  await okAs(phone, 'grant_key_pass', [DEE_HH, HAL, deeSos, 'Dee Park']);
+  const kp = sql(`SELECT * FROM key_pass WHERE sos_id = ${deeSos}`);
+  check('resident grant to accepted helper -> key pass', kp.length === 1);
+  const KP = Number(kp[0]?.id);
+  check('helper sees the key pass in my_key_pass', (await sqlAs(helperPhone, 'SELECT * FROM my_key_pass'))?.length === 1);
+  check('stranger sees no key pass in my_key_pass', (await sqlAs(stranger, 'SELECT * FROM my_key_pass'))?.length === 0);
+  await okAs(stranger, 'log_unlock', [KP]);
+  await okAs(stranger, 'revoke_key_pass', [KP]);
+  await okAs(helperPhone, 'log_unlock', [KP]);
+  const log = audit();
+  const has = (prefix, target = '') => log.some(l => l.startsWith(prefix) && l.includes(target));
+  check('audit: stranger grant denied', has('grant_key_pass_denied:not_resident_or_staff', `household:${DEE_HH}`));
+  check('audit: grant to non-accepted helper denied', has('grant_key_pass_denied:helper_not_accepted', `household:${DEE_HH}`));
+  check('audit: stranger unlock denied', has('log_unlock_denied:not_helper', `key_pass:${KP}`));
+  check('audit: stranger revoke denied', has('revoke_key_pass_denied:not_owner_or_approver', `key_pass:${KP}`));
+  check('audit: helper unlock recorded', has('log_unlock ', `key_pass:${KP}`));
+  check('key pass not revoked by stranger', sql(`SELECT * FROM key_pass WHERE id = ${KP}`)[0]?.revoked === 'false');
+
+  // The accepted helper can mark the person safe; that resolves the SOS.
+  await okAs(helperPhone, 'mark_safe', [DEE, 'Hal is with Dee']);
+  check('accepted helper marked safe', sql(`SELECT * FROM person WHERE id = ${DEE}`)[0]?.status === 'safe');
+  check('mark_safe audited', audit().some(l => l.startsWith('mark_safe') && l.includes(`person:${DEE}`)));
+  await okAs(helperPhone, 'log_unlock', [KP]);
+  check('unlock after SOS resolved denied', audit().some(l => l.startsWith('log_unlock_denied:sos_not_active') && l.includes(`key_pass:${KP}`)));
+
+  // Staff (dashboard identity) added by the owner can read ops_* views; removal takes it away.
+  mustOk('add_staff', [stranger.hex]);
+  check('staff sees every person in ops_person', ((await sqlAs(stranger, 'SELECT * FROM ops_person'))?.length ?? -1) === count('person'));
+  mustOk('remove_staff', [stranger.hex]);
+  check('removed staff sees no ops_person rows', (await sqlAs(stranger, 'SELECT * FROM ops_person'))?.length === 0);
+}

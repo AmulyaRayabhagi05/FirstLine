@@ -17,14 +17,28 @@ export function getPool(): pg.Pool {
 // trust by default. Verify against that CA instead of turning verification off.
 const TIMESCALE_CA_PATH = fileURLToPath(new URL('../../../db/tiger/timescale-ca.pem', import.meta.url));
 
-function sslFor(connectionString: string): pg.PoolConfig['ssl'] {
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/**
+ * TLS policy: Tiger Cloud verifies against its bundled CA; any other remote host verifies against
+ * the system CAs (TLS on by default, so credentials and personal data never cross the network in
+ * plaintext); localhost or an explicit sslmode=disable connects without TLS.
+ */
+export function sslFor(connectionString: string): pg.PoolConfig['ssl'] {
+  if (/sslmode=disable/.test(connectionString)) return undefined;
   const isTigerCloud = /\.tsdb\.cloud\.timescale\.com/.test(connectionString);
-  const wantsSsl = /sslmode=(require|verify-ca|verify-full)/.test(connectionString);
   if (isTigerCloud) {
     const caPath = process.env.TIGER_CA_CERT || TIMESCALE_CA_PATH;
     return { ca: readFileSync(caPath, 'utf8'), rejectUnauthorized: true };
   }
-  return wantsSsl ? { rejectUnauthorized: true } : undefined;
+  const wantsSsl = /sslmode=(require|verify-ca|verify-full)/.test(connectionString);
+  let host = '';
+  try {
+    host = new URL(connectionString).hostname;
+  } catch {
+    // Not a URL (e.g. key=value form): fall through to the explicit sslmode check.
+  }
+  return wantsSsl || (host !== '' && !LOCAL_HOSTS.has(host)) ? { rejectUnauthorized: true } : undefined;
 }
 
 export function createPool(connectionString: string): pg.Pool {

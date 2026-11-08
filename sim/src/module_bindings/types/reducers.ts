@@ -7,6 +7,7 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import AcceptAssignmentReducer from "../accept_assignment_reducer";
+import AddStaffReducer from "../add_staff_reducer";
 import AssignHelperReducer from "../assign_helper_reducer";
 import CheckInReducerReducer from "../check_in_reducer_reducer";
 import DeclineAssignmentReducer from "../decline_assignment_reducer";
@@ -18,6 +19,7 @@ import MarkSafeReducer from "../mark_safe_reducer";
 import PressSosReducer from "../press_sos_reducer";
 import RecountNowReducer from "../recount_now_reducer";
 import RegisterPersonReducer from "../register_person_reducer";
+import RemoveStaffReducer from "../remove_staff_reducer";
 import ReportSignalReducer from "../report_signal_reducer";
 import RevokeKeyPassReducer from "../revoke_key_pass_reducer";
 import SaveIncidentReportReducer from "../save_incident_report_reducer";
@@ -30,6 +32,7 @@ import SetTimingReducer from "../set_timing_reducer";
 import SetWorkerIdentityReducer from "../set_worker_identity_reducer";
 
 export type AcceptAssignmentParams = __Infer<typeof AcceptAssignmentReducer>;
+export type AddStaffParams = __Infer<typeof AddStaffReducer>;
 export type AssignHelperParams = __Infer<typeof AssignHelperReducer>;
 export type CheckInReducerParams = __Infer<typeof CheckInReducerReducer>;
 export type DeclineAssignmentParams = __Infer<typeof DeclineAssignmentReducer>;
@@ -41,6 +44,7 @@ export type MarkSafeParams = __Infer<typeof MarkSafeReducer>;
 export type PressSosParams = __Infer<typeof PressSosReducer>;
 export type RecountNowParams = __Infer<typeof RecountNowReducer>;
 export type RegisterPersonParams = __Infer<typeof RegisterPersonReducer>;
+export type RemoveStaffParams = __Infer<typeof RemoveStaffReducer>;
 export type ReportSignalParams = __Infer<typeof ReportSignalReducer>;
 export type RevokeKeyPassParams = __Infer<typeof RevokeKeyPassReducer>;
 export type SaveIncidentReportParams = __Infer<typeof SaveIncidentReportReducer>;

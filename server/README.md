@@ -23,7 +23,7 @@ After the first publish, connect the agent worker (the publisher's identity is t
 spacetime call --server local firstline set_worker_identity '"0x<worker identity hex>"'
 ```
 
-This works once. Worker-only reducers (`save_triage`, `assign_helper`, `escalate`,
+Calling it again replaces the worker (use this to rotate a leaked worker token). Worker-only reducers (`save_triage`, `assign_helper`, `escalate`,
 `save_incident_report`, `log_agent_step`, `set_priority`, `set_cell_alert`, `set_cell_census`)
 refuse every other identity.
 
@@ -35,6 +35,25 @@ it too).
 Calling reducers from the CLI: strings are JSON (`'"text"'`), options are `'{"some":0.9}'` or
 `'{"none":[]}'`, and put `--` before the database name when an argument is negative:
 `spacetime call -s local -- firstline press_sos '"c1"' 1 '"help"' 32.98 -96.75 '"app"'`.
+
+## Access control
+
+The database is public on Maincloud, so every table except `hex_cell` is private. Clients read
+through views: `ops_*` (every row, for the owner, the worker and `staff` identities; empty for
+anyone else) and `my_*` (only the caller's own people, households, SOS events, assignments and
+key passes). Reducers that act on a person check the caller: the identity that registered the
+person, staff, or (for `mark_safe`) the accepted helper. Full rules: `docs/contract.md`,
+`docs/security.md`.
+
+A dashboard needs a staff identity: get its identity from the client, then
+
+```bash
+spacetime call --server local firstline add_staff '"0x<dashboard identity hex>"'
+```
+
+Publishing this version over an older database is an automatic migration (tables change from
+public to private, new `staff` table and views); no data is lost. Subscribers to the old public
+tables must switch to the views and regenerate bindings.
 
 ## Smoke test
 
@@ -52,7 +71,11 @@ assign / decline / accept, key pass refused without an SOS for that household or
 approval, granted with both, `log_unlock`, revoke, unlock after revoke refused, the audit log
 row for every key-pass call, assignment timeout and key pass expiry (timers shortened to 5 s
 and 8 s), the scheduled 30-second recount, `coverage_gap`, `mark_safe`, `escalate` and
-incident reports. Takes about a minute. Env: `STDB_SERVER` (default `local`), `STDB_DB`
+incident reports, then an authorization section with separate identities over HTTP (a phone, a
+helper's phone and a stranger): private tables refused, `ops_*` empty for non-staff, `my_*` only
+own rows, strangers refused for `mark_safe` / `press_sos` / `check_in` / `accept_assignment` /
+owner and worker reducers, key pass only from a resident to the accepted helper, unlock only by
+the helper, `add_staff` / `remove_staff`. Takes about a minute. Env: `STDB_SERVER` (default `local`), `STDB_DB`
 (default `firstline-smoke`), `SKIP_PUBLISH=1`.
 
 ## Client bindings
@@ -82,10 +105,12 @@ camelCase (row field `h3Cell` maps to column `h3_cell`, reducer `pressSos` calls
   call's error. Malformed input (e.g. an over-long `approved_by`) still errors.
 - `grant_key_pass` needs an `open`/`assigned`/`escalated` SOS whose person lives in that
   household, a non-empty `approved_by`, and an existing helper.
+- `grant_key_pass` must come from a resident (by identity) or staff, and the helper must have
+  accepted that SOS. `log_unlock` only from the helper holding the pass or staff.
 - `revoke_key_pass` is allowed for a resident of the household (by identity), the identity
-  named in `approved_by`, the module owner or the worker.
+  named in `approved_by`, the helper holding it, the module owner, the worker or staff.
 - `accept_assignment` / `decline_assignment` must come from the helper's own identity (the one
-  that registered them), the worker or the owner.
+  that registered them) or staff; a helper with no identity can only be answered by staff.
 - `check_in` with `no_answer` stores the row but leaves `status` and `last_seen` alone.
 - `mark_safe` sets the person safe, writes a `neighbor_visit` check-in, resolves their active
   SOS events and marks accepted assignments `done`.

@@ -121,12 +121,66 @@ export const KeyPassExpirySchedule = __t.object("KeyPassExpirySchedule", {
 });
 export type KeyPassExpirySchedule = __Infer<typeof KeyPassExpirySchedule>;
 
+export const MyAssignment = __t.object("MyAssignment", {});
+export type MyAssignment = __Infer<typeof MyAssignment>;
+
+export const MyHousehold = __t.object("MyHousehold", {});
+export type MyHousehold = __Infer<typeof MyHousehold>;
+
+export const MyKeyPass = __t.object("MyKeyPass", {});
+export type MyKeyPass = __Infer<typeof MyKeyPass>;
+
+export const MyPerson = __t.object("MyPerson", {});
+export type MyPerson = __Infer<typeof MyPerson>;
+
+export const MySafetyNet = __t.object("MySafetyNet", {});
+export type MySafetyNet = __Infer<typeof MySafetyNet>;
+
+export const MySosEvent = __t.object("MySosEvent", {});
+export type MySosEvent = __Infer<typeof MySosEvent>;
+
 export const NetMember = __t.object("NetMember", {
   memberId: __t.u64(),
   ring: __t.u8(),
   skills: __t.string(),
 });
 export type NetMember = __Infer<typeof NetMember>;
+
+export const OpsAgentStep = __t.object("OpsAgentStep", {});
+export type OpsAgentStep = __Infer<typeof OpsAgentStep>;
+
+export const OpsAssignment = __t.object("OpsAssignment", {});
+export type OpsAssignment = __Infer<typeof OpsAssignment>;
+
+export const OpsAuditLog = __t.object("OpsAuditLog", {});
+export type OpsAuditLog = __Infer<typeof OpsAuditLog>;
+
+export const OpsCheckIn = __t.object("OpsCheckIn", {});
+export type OpsCheckIn = __Infer<typeof OpsCheckIn>;
+
+export const OpsHousehold = __t.object("OpsHousehold", {});
+export type OpsHousehold = __Infer<typeof OpsHousehold>;
+
+export const OpsIncidentReport = __t.object("OpsIncidentReport", {});
+export type OpsIncidentReport = __Infer<typeof OpsIncidentReport>;
+
+export const OpsKeyPass = __t.object("OpsKeyPass", {});
+export type OpsKeyPass = __Infer<typeof OpsKeyPass>;
+
+export const OpsPerson = __t.object("OpsPerson", {});
+export type OpsPerson = __Infer<typeof OpsPerson>;
+
+export const OpsSafetyNet = __t.object("OpsSafetyNet", {});
+export type OpsSafetyNet = __Infer<typeof OpsSafetyNet>;
+
+export const OpsSignal = __t.object("OpsSignal", {});
+export type OpsSignal = __Infer<typeof OpsSignal>;
+
+export const OpsSosEvent = __t.object("OpsSosEvent", {});
+export type OpsSosEvent = __Infer<typeof OpsSosEvent>;
+
+export const OpsTriage = __t.object("OpsTriage", {});
+export type OpsTriage = __Infer<typeof OpsTriage>;
 
 export const Person = __t.object("Person", {
   id: __t.u64(),
@@ -188,6 +242,12 @@ export const SosEvent = __t.object("SosEvent", {
   state: __t.string(),
 });
 export type SosEvent = __Infer<typeof SosEvent>;
+
+export const Staff = __t.object("Staff", {
+  identity: __t.identity(),
+  addedAt: __t.timestamp(),
+});
+export type Staff = __Infer<typeof Staff>;
 
 export const Triage = __t.object("Triage", {
   id: __t.u64(),

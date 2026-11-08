@@ -17,7 +17,8 @@ const client = createTwilioClient(cfg);
 
 const port = Number(process.env.MESSAGING_PORT ?? 8787);
 createMessagingServer({ store, cfg, client, getPerson }).listen(port, () => {
-  console.log(`[messaging] Twilio webhooks on :${port} (signature check ${cfg.authToken ? "on" : "OFF"})`);
+  const check = cfg.authToken ? "on" : cfg.allowUnsigned ? "OFF (TWILIO_ALLOW_UNSIGNED=1, dev only)" : "no token: every webhook refused";
+  console.log(`[messaging] Twilio webhooks on :${port} (signature check ${check})`);
 });
 
 if (process.env.MQTT_URL) startMeshBridgeFromEnv(store, getPerson);

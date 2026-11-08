@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import twilio from "twilio";
 import { afterEach, describe, expect, it } from "vitest";
+import { RateLimiter } from "../ratelimit.js";
 import { createMessagingServer } from "../server.js";
 import { InMemoryChannelStore, type ChannelPerson } from "../store.js";
 import { MockTwilio, isValidTwilioRequest, makeSendSmsTool, smsTwiml, type TwilioConfig } from "../twilio.js";
@@ -11,10 +12,10 @@ const TOKEN = "test_auth_token_not_real";
 let close: (() => void) | undefined;
 afterEach(() => close?.());
 
-async function start(cfg: TwilioConfig) {
+async function start(cfg: TwilioConfig, limiter?: RateLimiter) {
   const store = new InMemoryChannelStore([alma]);
   const client = new MockTwilio();
-  const server = createMessagingServer({ store, cfg, client, getPerson: async (id) => (id === 14 ? alma : undefined) });
+  const server = createMessagingServer({ store, cfg, client, limiter, getPerson: async (id) => (id === 14 ? alma : undefined) });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   close = () => server.close();
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -40,8 +41,18 @@ describe("Twilio signature", () => {
     expect(isValidTwilioRequest(TOKEN, undefined, url, params)).toBe(false);
   });
 
-  it("skips validation when no token is configured", () => {
-    expect(isValidTwilioRequest(undefined, undefined, url, params)).toBe(true);
+  it("fails closed when no token is configured, unless unsigned requests are allowed (dev)", () => {
+    expect(isValidTwilioRequest(undefined, undefined, url, params)).toBe(false);
+    expect(isValidTwilioRequest(undefined, undefined, url, params, true)).toBe(true);
+  });
+
+  it("server refuses unsigned webhooks when no token is configured", async () => {
+    const { base, store } = await start({});
+    const res = await post(`${base}/sms`, params);
+    expect(res.status).toBe(403);
+    const voice = await post(`${base}/voice/result?personId=14&lang=en&attempt=0`, { CallSid: "CAx", Digits: "1" });
+    expect(voice.status).toBe(403);
+    expect(store.checkIns).toHaveLength(0);
   });
 
   it("server returns 403 on a bad signature and 200 on a good one", async () => {
@@ -57,7 +68,7 @@ describe("Twilio signature", () => {
 
 describe("SMS webhook", () => {
   it("FL SOS from any number creates an sms SOS with coords and replies TwiML", async () => {
-    const { base, store } = await start({});
+    const { base, store } = await start({ allowUnsigned: true });
     const res = await post(`${base}/sms`, { From: "+19725550000", Body: "FL SOS 32.78,-96.80 2ppl insulin", MessageSid: "SMa" });
     expect(res.headers.get("content-type")).toContain("text/xml");
     const body = await res.text();
@@ -68,37 +79,78 @@ describe("SMS webhook", () => {
   });
 
   it("FL OK from a known phone checks the person in as safe", async () => {
-    const { base, store } = await start({});
+    const { base, store } = await start({ allowUnsigned: true });
     await post(`${base}/sms`, { From: "(214) 555-0114", Body: "FL OK", MessageSid: "SMb" });
     expect(store.checkIns).toEqual([{ clientId: "sms:SMb", personId: 14, kind: "sms", result: "safe", note: "" }]);
   });
 
   it("free Spanish text from a known phone becomes an SOS at their last location", async () => {
-    const { base, store } = await start({});
+    const { base, store } = await start({ allowUnsigned: true });
     await post(`${base}/sms`, { From: "+12145550114", Body: "No hay luz y mi oxígeno se apaga", MessageSid: "SMc" });
     expect(store.sos[0]).toMatchObject({ personId: 14, message: "No hay luz y mi oxígeno se apaga", lat: 32.79, lng: -96.81 });
   });
 
   it("free text from an unknown phone is not an SOS", async () => {
-    const { base, store } = await start({});
+    const { base, store } = await start({ allowUnsigned: true });
     const body = await (await post(`${base}/sms`, { From: "+15550001111", Body: "hello?", MessageSid: "SMd" })).text();
     expect(store.sos).toHaveLength(0);
     expect(body).toContain("we do not know this number");
   });
 
   it("malformed FL text gets a usage reply", async () => {
-    const { base, store } = await start({});
+    const { base, store } = await start({ allowUnsigned: true });
     const body = await (await post(`${base}/sms`, { From: "+12145550114", Body: "FL DANCE", MessageSid: "SMe" })).text();
     expect(body).toContain("could not read that");
     expect(store.sos).toHaveLength(0);
   });
 
   it("is idempotent on a repeated MessageSid (Twilio retries)", async () => {
-    const { base, store } = await start({});
+    const { base, store } = await start({ allowUnsigned: true });
     const p = { From: "+12145550114", Body: "FL HELP need insulin", MessageSid: "SMdup" };
     await post(`${base}/sms`, p);
     await post(`${base}/sms`, p);
     expect(store.sos).toHaveLength(1);
+  });
+
+  it("FL OK #<id> cannot mark someone else safe", async () => {
+    const { base, store } = await start({ allowUnsigned: true });
+    const fromStranger = await (await post(`${base}/sms`, { From: "+15550001111", Body: "FL OK #14", MessageSid: "SMs1" })).text();
+    const fromOtherPerson = await (await post(`${base}/sms`, { From: "+12145550114", Body: "FL OK #99", MessageSid: "SMs2" })).text();
+    expect(store.checkIns).toHaveLength(0);
+    expect(fromStranger).toContain("only mark yourself safe");
+    expect(fromOtherPerson).toContain("only mark yourself safe");
+  });
+
+  it("FL SOS #<id> from another number raises the alarm and says who reported it", async () => {
+    const { base, store } = await start({ allowUnsigned: true });
+    await post(`${base}/sms`, { From: "+15550001111", Body: "FL SOS #14 she fell", MessageSid: "SMr1" });
+    expect(store.sos).toHaveLength(1);
+    expect(store.sos[0]).toMatchObject({ personId: 14 });
+    expect(store.sos[0].message).toContain("[reported for #14 by another sms sender]");
+  });
+
+  it("rate limits one phone number", async () => {
+    const { base, store } = await start({ allowUnsigned: true }, new RateLimiter({ max: 2, windowMs: 60_000 }));
+    for (const n of [1, 2, 3, 4]) {
+      await post(`${base}/sms`, { From: "+19725550000", Body: `FL SOS 32.78,-96.80 flood ${n}`, MessageSid: `SMf${n}` });
+    }
+    expect(store.sos).toHaveLength(2);
+    const other = await post(`${base}/sms`, { From: "+12145550114", Body: "FL OK", MessageSid: "SMf5" });
+    expect(other.status).toBe(200);
+    expect(store.checkIns).toHaveLength(1);
+  });
+
+  it("refuses oversized bodies with 413", async () => {
+    const { base, store } = await start({ allowUnsigned: true });
+    const res = await post(`${base}/sms`, { From: "+12145550114", Body: "x".repeat(70_000), MessageSid: "SMbig" });
+    expect(res.status).toBe(413);
+    expect(store.sos).toHaveLength(0);
+  });
+
+  it("clips very long SOS text", async () => {
+    const { base, store } = await start({ allowUnsigned: true });
+    await post(`${base}/sms`, { From: "+12145550114", Body: `FL HELP ${"y".repeat(5000)}`, MessageSid: "SMlong" });
+    expect(store.sos[0].message.length).toBeLessThanOrEqual(1000);
   });
 
   it("escapes reply text in TwiML", () => {

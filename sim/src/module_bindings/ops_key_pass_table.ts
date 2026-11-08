@@ -11,9 +11,12 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u32().primaryKey(),
-  owner: __t.identity(),
-  worker: __t.option(__t.identity()),
-  assignmentTimeoutSecs: __t.u32().name("assignment_timeout_secs"),
-  keyPassTtlSecs: __t.u32().name("key_pass_ttl_secs"),
+  id: __t.u64().primaryKey(),
+  householdId: __t.u64().name("household_id"),
+  helperId: __t.u64().name("helper_id"),
+  sosId: __t.u64().name("sos_id"),
+  grantedAt: __t.timestamp().name("granted_at"),
+  expiresAt: __t.timestamp().name("expires_at"),
+  revoked: __t.bool(),
+  approvedBy: __t.string().name("approved_by"),
 });

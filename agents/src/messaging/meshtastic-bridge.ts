@@ -12,6 +12,7 @@
 import mqtt from "mqtt";
 import { z } from "zod";
 import { handleInboundText, type InboundOutcome } from "./inbound.js";
+import { inboundLimiter, type RateLimiter } from "./ratelimit.js";
 import type { ChannelPerson, ChannelStore } from "./store.js";
 import type { MessagingTool } from "./twilio.js";
 
@@ -47,6 +48,8 @@ export interface MeshBridgeOptions {
   resolveNode?: (nodeId: string) => Promise<ChannelPerson | undefined>;
   /** Max packet ids remembered for de-duplication. */
   dedupeSize?: number;
+  /** Per-node limit on FirstLine commands (default 10 per 10 minutes). */
+  limiter?: RateLimiter;
   log?: (msg: string) => void;
 }
 
@@ -84,10 +87,12 @@ export class MeshtasticBridge {
   private readonly seen = new Set<string>();
   private readonly positions = new Map<string, { lat: number; lng: number }>();
   private readonly log: (msg: string) => void;
+  private readonly limiter: RateLimiter;
 
   constructor(private readonly opts: MeshBridgeOptions) {
     this.root = (opts.root ?? "msh/US").replace(/\/$/, "");
     this.log = opts.log ?? ((m) => console.log(`[mesh] ${m}`));
+    this.limiter = opts.limiter ?? inboundLimiter();
   }
 
   get uplinkTopic() {
@@ -139,18 +144,36 @@ export class MeshtasticBridge {
     if (pkt.type === "position") {
       const p = pkt.payload as { latitude_i?: number; longitude_i?: number };
       if (typeof p?.latitude_i === "number" && typeof p?.longitude_i === "number") {
-        this.positions.set(nodeId, { lat: p.latitude_i / 1e7, lng: p.longitude_i / 1e7 });
+        const lat = p.latitude_i / 1e7;
+        const lng = p.longitude_i / 1e7;
+        if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          this.positions.delete(nodeId);
+          this.positions.set(nodeId, { lat, lng });
+          // Anyone on a public MQTT broker can publish positions: keep the map bounded.
+          while (this.positions.size > (this.opts.dedupeSize ?? 5000)) {
+            const first = this.positions.keys().next().value;
+            if (first === undefined) break;
+            this.positions.delete(first);
+          }
+        }
       }
       return { status: "position" };
     }
     if (pkt.type !== "text") return { status: "ignored" };
 
-    const text =
+    const raw =
       typeof pkt.payload === "string" ? pkt.payload : String((pkt.payload as { text?: unknown })?.text ?? "");
+    const text = raw.slice(0, 500); // LoRa text is ~230 bytes; anything longer is not from a radio
     const person = await this.opts.resolveNode?.(nodeId);
     const isCommand = /^\s*fl\b/i.test(text);
     // Plain chatter on the mesh from unknown nodes is not for us; don't reply (avoids loops).
     if (!isCommand && !person) return { status: "ignored" };
+    // MQTT packets are not authenticated (any client can publish any `from`), so cap how much
+    // one node can trigger. Over the limit: drop silently (no reply, no reducer call).
+    if (!this.limiter.allow(`mesh:${nodeId}`)) {
+      this.log(`${nodeId} rate limited`);
+      return { status: "ignored" };
+    }
 
     const { outcome } = await handleInboundText(this.opts.store, {
       clientId: `mesh:${key}`,
@@ -159,7 +182,8 @@ export class MeshtasticBridge {
       person,
       position: this.positions.get(nodeId),
     });
-    this.log(`${nodeId} "${text}" -> ${outcome.action}`);
+    // No message text in logs: SOS texts carry health details.
+    this.log(`${nodeId} (${text.length} chars) -> ${outcome.action}`);
     if (outcome.action !== "rejected" || isCommand) {
       await this.sendText(shortReply(outcome), pkt.from).catch((e) => this.log(`reply failed: ${String(e)}`));
     }
