@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COMMS, fmtTime, homes } from '../sim/world';
 import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type AgentLine } from '../state/store';
-import { SPACETIME_DB, SPACETIME_HOST, clearFlood, markHouseholdSafe, startFlood } from '../data/live';
+import { SPACETIME_DB, SPACETIME_HOST, clearFlood, markHouseholdSafe, signIn, signOut, startFlood } from '../data/live';
 
 export function Wordmark() {
   return (
@@ -104,6 +104,7 @@ export function Toolbar() {
       </div>
       <button className="panel tbtn" aria-expanded={s.layersOpen} onClick={() => s.setLayersOpen(!s.layersOpen)}>Layers</button>
       <button className="panel tbtn red" onClick={startDemo} aria-pressed={demoOn}>{demoOn ? '■ Stop' : '▶ Tour'}</button>
+      <button className="panel tbtn" onClick={() => { signOut(); s.setSignedIn(false); }} title="Forget this browser's access key">Sign out</button>
       {s.layersOpen && (
         <section className="panel layers" aria-label="Layers and legend">
           <div className="slide">
@@ -117,11 +118,9 @@ export function Toolbar() {
           </div>
           <div className="legend" aria-label="Legend">
             {([
-              ['p1', '!', 'P1 · help now'],
-              ['p2', '◆', 'Silent risk'],
-              ['unknown', '?', 'Not reached'],
-              ['enroute', '→', 'Neighbor en route'],
-              ['safe', '✓', 'Checked in safe'],
+              ['safe', '✓', 'Safe · short green beam'],
+              ['p1', '!', 'Needs help · tall red beam'],
+              ['enroute', '→', 'Help on the way · blue'],
             ] as const).map(([k, g, t]) => (
               <div key={k}><span className="sq" style={{ background: STATUS_COLOR[k] }}>{g}</span>{t}</div>
             ))}
@@ -455,6 +454,64 @@ export function Finale() {
         <div className="tagline">Your neighbors are the first line</div>
         <button className="btn" onClick={() => setFinale(false)}>Back to map</button>
       </div>
+    </div>
+  );
+}
+
+// Small sign-in: access to the system is a staff identity. Paste a staff access key, or ask an admin
+// to grant this browser's ID. Anyone already granted goes straight in.
+export function SignIn() {
+  const info = useMap((s) => s.liveInfo);
+  const signedIn = useMap((s) => s.signedIn);
+  const setSignedIn = useMap((s) => s.setSignedIn);
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [copied, setCopied] = useState(false);
+  const hasAccess = info.state === 'subscribed' && info.people > 0;
+  useEffect(() => {
+    if (hasAccess && !signedIn) setSignedIn(true);
+  }, [hasAccess, signedIn]);
+  if (signedIn) return null;
+  const id = info.identity ? `0x${info.identity}` : '';
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setMsg('Signing in…');
+    const ok = await signIn(key);
+    setBusy(false);
+    setKey('');
+    if (ok) setSignedIn(true);
+    else setMsg(useMap.getState().liveInfo.people === 0 && useMap.getState().liveInfo.identity ? 'That key is not staff, or was not accepted. Check it, or ask an admin to grant it.' : 'That key was not accepted. Check it and try again.');
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="signin" role="dialog" aria-label="Sign in">
+      <form className="panel signbox" onSubmit={submit}>
+        <Wordmark />
+        <div className="label">Operator sign-in</div>
+        <p className="signline nc">Household data is visible to staff only. Sign in with your staff access key.</p>
+        <label className="label" htmlFor="signin-key">Access key</label>
+        <input id="signin-key" className="signinput nc" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Paste your key" />
+        <button className="btn primary" type="submit" disabled={busy || !key.trim()}>Sign in</button>
+        {msg && <p className="signmsg nc">{msg}</p>}
+        <div className="signsep" />
+        <div className="label">No key yet?</div>
+        <p className="signline nc">Ask an admin to grant this browser. It is ready to use as soon as they do.</p>
+        <div className="signid">
+          <code className="nc">{id || (info.state === 'error' ? 'not connected' : 'connecting…')}</code>
+          {id && <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy ID'}</button>}
+        </div>
+        <p className="signline small nc">Admin runs: spacetime call firstline add_staff '"{id || '<this ID>'}"'</p>
+        <button type="button" className="skip" onClick={() => setSignedIn(true)}>Look around without data</button>
+      </form>
     </div>
   );
 }

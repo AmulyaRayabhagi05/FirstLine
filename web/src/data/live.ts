@@ -37,6 +37,13 @@ function writeToken(token: string) {
     /* per-viewer convenience only */
   }
 }
+function clearToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* nothing stored */
+  }
+}
 
 const ms = (t: { toDate(): Date } | undefined | null) => (t ? t.toDate().getTime() : null);
 const key = (id: bigint) => id.toString();
@@ -297,15 +304,55 @@ export async function clearFlood(onProgress?: (done: number, total: number) => v
   return targets.length;
 }
 
-export function startLive() {
+// ---- sign in / sign out ----
+// Access is the SpacetimeDB identity: a staff identity's access key (its token) sees the ops_* views.
+// Signing in reconnects with that key; signing out forgets it and starts a fresh identity.
+
+function restart(token: string | undefined) {
+  const old = liveConn;
+  liveConn = null;
+  old?.disconnect();
+  placement.clear();
+  taken.clear();
+  useMap.getState().resetLive();
+  if (!token) clearToken(); // a key is saved only once the server accepts it (onConnect)
+  startLive(token);
+}
+
+/** Sign in with a staff access key. Resolves to whether that identity can see the system. */
+export function signIn(accessKey: string): Promise<boolean> {
+  const key = accessKey.trim();
+  if (!key) return Promise.resolve(false);
+  const previous = readToken();
+  restart(key);
+  return new Promise((resolve) => {
+    const unsub = useMap.subscribe((s) => {
+      if (s.liveInfo.state === 'subscribed' || s.liveInfo.state === 'error') {
+        unsub();
+        const rejected = s.liveInfo.state === 'error';
+        // A rejected key leaves this browser on its previous identity.
+        if (rejected) restart(previous);
+        resolve(!rejected && s.liveInfo.people > 0);
+      }
+    });
+  });
+}
+
+/** Forget this browser's access key and connect as a new, unprivileged identity. */
+export function signOut() {
+  restart(undefined);
+}
+
+export function startLive(token: string | undefined = readToken()) {
   const st = useMap.getState();
   st.setLiveInfo({ state: 'connecting', message: `Connecting to ${SPACETIME_HOST} / ${SPACETIME_DB}…` });
 
-  liveConn = DbConnection.builder()
+  const conn0 = DbConnection.builder()
     .withUri(SPACETIME_HOST)
     .withDatabaseName(SPACETIME_DB)
-    .withToken(readToken())
+    .withToken(token)
     .onConnect((conn, identity, token) => {
+      if (conn !== liveConn) return; // a newer sign-in replaced this connection
       writeToken(token);
       const hex = identity.toHexString();
       console.info(`[firstline] dashboard identity 0x${hex}`);
@@ -318,7 +365,7 @@ export function startLive() {
         queued = true;
         setTimeout(() => {
           queued = false;
-          snapshot(conn);
+          if (conn === liveConn) snapshot(conn);
         }, 250);
       };
 
@@ -353,9 +400,12 @@ export function startLive() {
           'SELECT * FROM hex_cell',
         ]);
     })
-    .onConnectError((_ctx, err) => useMap.getState().setLiveInfo({ state: 'error', message: `Could not connect to ${SPACETIME_HOST}: ${err.message}` }))
+    .onConnectError((_ctx, err) => {
+      if (liveConn === conn0) useMap.getState().setLiveInfo({ state: 'error', message: `Could not sign in to ${SPACETIME_HOST}: ${err.message}` });
+    })
     .onDisconnect((_ctx, err) => {
-      if (err) useMap.getState().setLiveInfo({ state: 'error', message: `Disconnected: ${err.message}` });
+      if (err && liveConn === conn0) useMap.getState().setLiveInfo({ state: 'error', message: `Disconnected: ${err.message}` });
     })
     .build();
+  liveConn = conn0;
 }

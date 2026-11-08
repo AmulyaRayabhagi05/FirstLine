@@ -96,6 +96,10 @@ export interface MapState {
   setLayersOpen: (v: boolean) => void;
   setLive: (data: { residents: (Resident | null)[]; feed: AgentLine[]; reports: IncidentReport[] }) => void;
   setLiveInfo: (info: Partial<LiveInfo>) => void;
+  resetLive: () => void;
+  /** True once the person has signed in (or chose to look without data) for this visit. */
+  signedIn: boolean;
+  setSignedIn: (v: boolean) => void;
 }
 
 export const useMap = create<MapState>((set, get) => ({
@@ -138,6 +142,18 @@ export const useMap = create<MapState>((set, get) => ({
       version: get().version + 1,
     }),
   setLiveInfo: (info) => set((s) => ({ liveInfo: { ...s.liveInfo, ...info } })),
+  resetLive: () =>
+    set((s) => ({
+      residents: homes.map(() => null),
+      statuses: homes.map(() => 'normal'),
+      feed: [],
+      reports: [],
+      selectedId: null,
+      version: s.version + 1,
+      liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, lastUpdate: 0 },
+    })),
+  signedIn: false,
+  setSignedIn: (v) => set({ signedIn: v }),
 }));
 
 /** True while any household in the river flood zone needs help: the red band and dashed edge show only then. */

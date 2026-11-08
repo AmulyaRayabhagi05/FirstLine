@@ -68,10 +68,12 @@ export function Beams() {
     const { statuses: st, showBeams, residents } = useMap.getState();
     const dim = live.dim;
     const hs = live.homeScale;
-    const beamA = Math.min(1, Math.max(0, (dim - 0.25) / 0.5));
+    // Beams stay at full strength across the slider; the flat 2D dots take over only at the very end,
+    // so a half-tilted city still shows beams, not green discs on the roofs.
+    const beamA = Math.min(1, Math.max(0, (dim - 0.04) / 0.16));
     coreMat.uniforms.uOpacity.value = 0.95 * beamA;
     haloMat.uniforms.uOpacity.value = 0.32 * beamA;
-    dotMat.opacity = Math.min(1, Math.max(0, 1 - dim * 1.6)) * 0.95;
+    dotMat.opacity = Math.min(1, Math.max(0, 1 - dim / 0.12)) * 0.95;
     cores.current.visible = halos.current.visible = showBeams && beamA > 0;
     dots.current.visible = showBeams && dotMat.opacity > 0;
     const pulse = reduce ? 1 : 0.8 + 0.2 * Math.sin(clock.elapsedTime * 3.8);
