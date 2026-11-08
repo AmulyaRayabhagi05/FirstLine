@@ -476,6 +476,10 @@ export class SpacetimeStore implements FirstLineStore {
     if (this.ownSteps.length > 5000) this.ownSteps.splice(0, 1000);
   }
 
+  async trimHistory(keepSteps: number, keepReports: number): Promise<void> {
+    await this.conn.reducers.trimHistory({ keepSteps, keepReports });
+  }
+
   async finishAction(requestId: Id, state: "done" | "failed", result: string): Promise<void> {
     await this.conn.reducers.finishAction({ requestId: big(requestId), state, result: result.slice(0, 4000) });
   }

@@ -35,6 +35,7 @@ import SetPriorityReducer from "../set_priority_reducer";
 import SetSafetyNetReducer from "../set_safety_net_reducer";
 import SetTimingReducer from "../set_timing_reducer";
 import SetWorkerIdentityReducer from "../set_worker_identity_reducer";
+import TrimHistoryReducer from "../trim_history_reducer";
 import UpdateLocationReducer from "../update_location_reducer";
 
 export type AcceptAssignmentParams = __Infer<typeof AcceptAssignmentReducer>;
@@ -66,5 +67,6 @@ export type SetPriorityParams = __Infer<typeof SetPriorityReducer>;
 export type SetSafetyNetParams = __Infer<typeof SetSafetyNetReducer>;
 export type SetTimingParams = __Infer<typeof SetTimingReducer>;
 export type SetWorkerIdentityParams = __Infer<typeof SetWorkerIdentityReducer>;
+export type TrimHistoryParams = __Infer<typeof TrimHistoryReducer>;
 export type UpdateLocationParams = __Infer<typeof UpdateLocationReducer>;
 

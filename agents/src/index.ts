@@ -33,6 +33,8 @@ export * from "./llm/index.js";
 export interface WorkerOptions {
   silentSignalEveryMs?: number;
   reportsEveryMs?: number;
+  /** How often to trim agent steps and reports to the newest 8000 / 300 (0 = off). Default 10 min. */
+  trimEveryMs?: number;
   /** How often to give an SOS to needs_help people who have none (0 = off). Default 30 s. */
   needsHelpEveryMs?: number;
   /** Agent runs at once across SOS events (the flood demo opens dozens). Default 4. */
@@ -243,6 +245,12 @@ export class AgentWorker {
     const rp = this.opts.reportsEveryMs ?? 120_000;
     if (ss > 0) this.timers.push(setInterval(() => void this.track(this.silentSignal.sweep()), ss));
     if (rp > 0) this.timers.push(setInterval(() => void this.track(runReportsSweep(this.deps)), rp));
+    const trim = this.deps.store.trimHistory?.bind(this.deps.store);
+    if (trim && (this.opts.trimEveryMs ?? 600_000) > 0) {
+      const run = () => void trim(8000, 300).catch((err) => this.onError("trimHistory", err));
+      run();
+      this.timers.push(setInterval(run, this.opts.trimEveryMs ?? 600_000));
+    }
     const nh = this.opts.needsHelpEveryMs ?? 30_000;
     if (nh > 0) this.timers.push(setInterval(() => void this.track(this.sweepNeedsHelp()), nh));
     return this;

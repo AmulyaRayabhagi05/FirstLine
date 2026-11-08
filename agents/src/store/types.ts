@@ -254,6 +254,8 @@ export interface FirstLineStore {
   escalate(sosId: Id, reason: string): Promise<void>;
   saveIncidentReport(args: SaveIncidentReportArgs): Promise<Id>;
   logAgentStep(args: LogAgentStepArgs): Promise<void>;
+  /** Drop all but the newest agent steps and incident reports (keeps dashboards fast). Optional. */
+  trimHistory?(keepSteps: number, keepReports: number): Promise<void>;
   /** Close a dashboard action request with what the agents did. */
   finishAction(requestId: Id, state: Exclude<ActionState, "pending">, result: string): Promise<void>;
   setPriority(personId: Id, priority: PriorityCategory, priorityScore: number): Promise<void>;

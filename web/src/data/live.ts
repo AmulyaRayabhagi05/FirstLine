@@ -221,6 +221,32 @@ function snapshot(conn: DbConnection) {
       : null;
   }
 
+  // Index rows once per snapshot; the household loop below runs for every home (2000+), so any
+  // scan of a whole table inside it multiplies into tens of millions of comparisons.
+  const groupBy = <T,>(rows: T[], k: (r: T) => string) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) {
+      const kk = k(r);
+      const arr = m.get(kk);
+      if (arr) arr.push(r);
+      else m.set(kk, [r]);
+    }
+    return m;
+  };
+  const checkInsByPerson = groupBy(checkIns, (c) => key(c.personId));
+  const sosByPerson = groupBy(sosAll, (s) => key(s.personId));
+  const netsByOwner = groupBy(nets, (n) => key(n.ownerId));
+  const actionsByPerson = groupBy(actionRows, (x) => key(x.personId));
+  const feedByHome = groupBy(feed, (f) => String(f.homeIdx));
+  const claimByPerson = new Map<string, (typeof steps)[number]>();
+  for (const st of steps) {
+    if (!st.content.startsWith('Claim timeline:')) continue;
+    const pid = st.subject.split(':')[1] ?? '';
+    const prev = claimByPerson.get(pid);
+    if (!prev || ms(prev.createdAt)! < ms(st.createdAt)!) claimByPerson.set(pid, st);
+  }
+  const forMembers = <T,>(m: Map<string, T[]>, ids: Set<string>) => [...ids].flatMap((id) => m.get(id) ?? []);
+
   const residents: (Resident | null)[] = homes.map(() => null);
   for (const h of households) {
     const idx = placement.get(key(h.id));
@@ -239,8 +265,9 @@ function snapshot(conn: DbConnection) {
       const po = latestSignal.get(key(m.id))?.get('power_out');
       if (po && po.value >= 0.5) powerOut = true;
     }
-    for (const c of checkIns) {
-      if (!ids.has(key(c.personId))) continue;
+    const hhCheckIns = forMembers(checkInsByPerson, ids);
+    const hhSos = forMembers(sosByPerson, ids);
+    for (const c of hhCheckIns) {
       const t = ms(c.createdAt)!;
       if (t > lastContactAt) {
         lastContactAt = t;
@@ -249,8 +276,7 @@ function snapshot(conn: DbConnection) {
     }
     const a = activeAssignment.get(key(primary.id));
     const helper = a ? personById.get(key(a.helperId))?.name ?? null : null;
-    const net = nets
-      .filter((n) => key(n.ownerId) === key(primary.id))
+    const net = [...(netsByOwner.get(key(primary.id)) ?? [])]
       .sort((x, y) => x.ring - y.ring)
       .slice(0, 3)
       .map((n) => {
@@ -259,12 +285,10 @@ function snapshot(conn: DbConnection) {
       });
 
     const log: AgentLine[] = [
-      ...feed.filter((f) => f.homeIdx === idx),
-      ...sosAll
-        .filter((s) => ids.has(key(s.personId)))
+      ...(feedByHome.get(String(idx)) ?? []),
+      ...hhSos
         .map((s) => ({ at: ms(s.createdAt)!, agent: `SOS · ${s.channel}`, kind: 'sos', text: `"${s.message}"`, conf: null, subject: `sos:${s.id}`, homeIdx: idx })),
-      ...checkIns
-        .filter((c) => ids.has(key(c.personId)))
+      ...hhCheckIns
         .map((c) => ({ at: ms(c.createdAt)!, agent: 'Check-in', kind: c.kind, text: `${c.kind.replace(/_/g, ' ')}: ${c.result}${c.note ? ` · ${c.note}` : ''}`, conf: null, subject: `person:${c.personId}`, homeIdx: idx })),
     ].sort((x, y) => x.at - y.at);
 
@@ -295,16 +319,13 @@ function snapshot(conn: DbConnection) {
       triage: householdTriage(members.map((m) => latestTriage.get(key(m.id)))),
       assignment: householdAssignment(ids),
       keyPass: householdKeyPass(key(h.id)),
-      escalated: sosAll.some((s) => ids.has(key(s.personId)) && s.state === 'escalated'),
-      actions: actionRows
-        .filter((x) => ids.has(key(x.personId)))
+      escalated: hhSos.some((s) => s.state === 'escalated'),
+      actions: forMembers(actionsByPerson, ids)
         .sort((x, y) => ms(y.createdAt)! - ms(x.createdAt)!)
         .slice(0, 4)
         .map((x) => ({ id: key(x.id), action: x.action as ActionKind, state: x.state, result: x.result, at: ms(x.createdAt)! })),
       claimTimeline: (() => {
-        const t = steps
-          .filter((s) => s.content.startsWith('Claim timeline:') && ids.has(s.subject.split(':')[1] ?? ''))
-          .sort((x, y) => ms(y.createdAt)! - ms(x.createdAt)!)[0];
+        const t = [...ids].map((id) => claimByPerson.get(id)).filter((x): x is (typeof steps)[number] => !!x).sort((x, y) => ms(y.createdAt)! - ms(x.createdAt)!)[0];
         return t ? { at: ms(t.createdAt)!, text: t.content } : null;
       })(),
     };
@@ -484,14 +505,20 @@ export function startLive(token: string | undefined = readToken() ?? PINNED_TOKE
       useMap.getState().setLiveInfo({ identity: hex });
 
       // Coalesce bursts of row callbacks (a storm playback inserts many rows a second).
+      // Each snapshot rebuilds the whole map, so wait at least 3x as long as the last one took.
       let queued = false;
+      let lastCost = 0;
       const refresh = () => {
         if (queued) return;
         queued = true;
         setTimeout(() => {
           queued = false;
-          if (conn === liveConn) snapshot(conn);
-        }, 250);
+          if (conn !== liveConn) return;
+          const t0 = performance.now();
+          snapshot(conn);
+          lastCost = performance.now() - t0;
+          if (lastCost > 200) console.warn(`[firstline] map refresh took ${Math.round(lastCost)} ms`);
+        }, Math.max(250, lastCost * 3));
       };
 
       conn
@@ -504,7 +531,7 @@ export function startLive(token: string | undefined = readToken() ?? PINNED_TOKE
             table.onDelete(refresh);
             table.onUpdate?.(refresh);
           }
-          snapshot(conn);
+          { const t0 = performance.now(); snapshot(conn); console.info(`[firstline] first map build ${Math.round(performance.now() - t0)} ms`); }
           const people = useMap.getState().liveInfo.people;
           useMap.getState().setLiveInfo({
             state: 'subscribed',

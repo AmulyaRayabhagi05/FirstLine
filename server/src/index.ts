@@ -692,6 +692,26 @@ export const purge_event = spacetimedb.reducer(
   }
 );
 
+// Keep the live dashboards light: drop all but the newest agent steps and incident reports.
+// (Every client subscribes to these; an unbounded log makes every page load slower.)
+export const trim_history = spacetimedb.reducer(
+  { keep_steps: t.u32(), keep_reports: t.u32() },
+  (ctx, { keep_steps, keep_reports }) => {
+    if (!isOwner(ctx) && !isWorker(ctx)) fail('only the owner or worker may trim history');
+    if (keep_steps < 500 || keep_reports < 50) fail('keep at least 500 steps and 50 reports');
+    const steps = [...ctx.db.agent_step.iter()];
+    if (steps.length > keep_steps) {
+      steps.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      for (const r of steps.slice(0, steps.length - keep_steps)) ctx.db.agent_step.id.delete(r.id);
+    }
+    const reports = [...ctx.db.incident_report.iter()];
+    if (reports.length > keep_reports) {
+      reports.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      for (const r of reports.slice(0, reports.length - keep_reports)) ctx.db.incident_report.id.delete(r.id);
+    }
+  }
+);
+
 export const recount_now = spacetimedb.reducer(ctx => {
   if (!isOwner(ctx) && !isWorker(ctx)) fail('only the owner or worker may force a recount');
   recount(ctx);

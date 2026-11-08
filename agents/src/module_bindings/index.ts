@@ -63,6 +63,7 @@ import SetPriorityReducer from "./set_priority_reducer";
 import SetSafetyNetReducer from "./set_safety_net_reducer";
 import SetTimingReducer from "./set_timing_reducer";
 import SetWorkerIdentityReducer from "./set_worker_identity_reducer";
+import TrimHistoryReducer from "./trim_history_reducer";
 import UpdateLocationReducer from "./update_location_reducer";
 
 // Import all procedure arg schemas
@@ -278,6 +279,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_safety_net", SetSafetyNetReducer),
   __reducerSchema("set_timing", SetTimingReducer),
   __reducerSchema("set_worker_identity", SetWorkerIdentityReducer),
+  __reducerSchema("trim_history", TrimHistoryReducer),
   __reducerSchema("update_location", UpdateLocationReducer),
 );
 
