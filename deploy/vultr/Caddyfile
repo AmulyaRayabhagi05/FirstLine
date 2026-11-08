@@ -8,6 +8,24 @@
 	handle @twilio {
 		reverse_proxy 127.0.0.1:8787
 	}
+	# Resident app (PWA) at /app/: its own index.html, never the dashboard's
+	redir /app /app/ 308
+	handle /app/* {
+		root * /srv/firstline/web
+		try_files {path} /app/index.html
+		file_server
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			X-Frame-Options DENY
+		}
+		@appassets path /app/assets/*
+		header @appassets Cache-Control "public, max-age=31536000, immutable"
+		@apppage not path /app/assets/*
+		header @apppage Cache-Control "no-cache"
+		@manifest path /app/manifest.webmanifest
+		header @manifest Content-Type "application/manifest+json"
+	}
 	# FirstLine dashboard (static build; reads SpacetimeDB Maincloud as a read-only viewer)
 	handle {
 		root * /srv/firstline/web
