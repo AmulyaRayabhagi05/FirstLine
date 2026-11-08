@@ -5,6 +5,7 @@ import twilio from "twilio";
 import { z } from "zod";
 import type { ChannelPerson, ChannelStore } from "./store.js";
 import { xmlEscape, type MessagingTool, type TwilioConfig, type TwilioLike } from "./twilio.js";
+import { spokenGuidance } from "../knowledge/harness.js";
 
 export type ReplyClass = { result: "safe" | "needs_help" | "unclear"; note?: string };
 /** Injected by the worker (Nemotron). The stub below is keyword-based. */
@@ -22,12 +23,14 @@ export const keywordClassifyReply: ClassifyReply = async (text) => {
 type Lang = "en" | "es";
 const langOf = (language: string | undefined): Lang => (language?.toLowerCase().startsWith("es") ? "es" : "en");
 
-const SCRIPT: Record<Lang, { intro: (name: string) => string; prompt: string; safe: string; help: string; unclear: string; noInput: string; voice: string; speechLang: string }> = {
+// The safety lines in the middle of the intro come from the cited protocol pack (knowledge/protocols.ts),
+// chosen for this person: carbon monoxide and cold by default, device guidance for powered-device users.
+const SCRIPT: Record<Lang, { intro: (name: string, guidance: string) => string; prompt: string; safe: string; help: string; unclear: string; noInput: string; voice: string; speechLang: string }> = {
   en: {
-    intro: (name) =>
+    intro: (name, guidance) =>
       `Hello ${name}, this is FirstLine, your neighborhood safety check. ` +
-      "Is your home too hot, or is the power out? " +
-      "If you are running a generator, keep it outside, away from windows, because of carbon monoxide. " +
+      "Is your power out, or is your home too hot or too cold? " +
+      (guidance ? `${guidance} ` : "") +
       "If you use oxygen or another powered medical device, tell us if it is losing power.",
     prompt: "Press 1 if you are okay. Press 2 if you need help. Or just tell us how you are doing.",
     safe: "Thank you. We marked you safe. Goodbye.",
@@ -38,10 +41,10 @@ const SCRIPT: Record<Lang, { intro: (name: string) => string; prompt: string; sa
     speechLang: "en-US",
   },
   es: {
-    intro: (name) =>
+    intro: (name, guidance) =>
       `Hola ${name}, le llama FirstLine, la revisión de seguridad de su vecindario. ` +
-      "¿Hace demasiado calor en su casa, o no hay electricidad? " +
-      "Si usa un generador, déjelo afuera, lejos de las ventanas, por el monóxido de carbono. " +
+      "¿Se fue la luz, o hace demasiado calor o frío en su casa? " +
+      (guidance ? `${guidance} ` : "") +
       "Si usa oxígeno u otro equipo médico eléctrico, díganos si se está quedando sin energía.",
     prompt: "Oprima 1 si está bien. Oprima 2 si necesita ayuda. O díganos cómo está.",
     safe: "Gracias. Le marcamos como a salvo. Adiós.",
@@ -68,9 +71,20 @@ function resultUrl(cfg: TwilioConfig, personId: number, lang: Lang, attempt = 0)
 }
 
 /** TwiML spoken when the person picks up (also served for retries after an unclear answer). */
-export function checkInTwiml(cfg: TwilioConfig, person: { id: number; name: string; language?: string }, attempt = 0): string {
+export function checkInTwiml(
+  cfg: TwilioConfig,
+  person: { id: number; name: string; language?: string; age?: number; poweredDevice?: boolean; medicalNeeds?: string },
+  attempt = 0,
+  context = "",
+): string {
   const lang = langOf(person.language);
   const s = SCRIPT[lang];
+  const guidance = spokenGuidance({
+    lang,
+    context,
+    profile: { age: person.age, poweredDevice: person.poweredDevice, medicalNeeds: person.medicalNeeds },
+    max: 2,
+  }).join(" ");
   const r = new twilio.twiml.VoiceResponse();
   const g = r.gather({
     input: ["dtmf", "speech"],
@@ -81,7 +95,7 @@ export function checkInTwiml(cfg: TwilioConfig, person: { id: number; name: stri
     action: resultUrl(cfg, person.id, lang, attempt),
     method: "POST",
   });
-  if (attempt === 0) g.say({ voice: s.voice as never, language: s.speechLang as never }, s.intro(person.name));
+  if (attempt === 0) g.say({ voice: s.voice as never, language: s.speechLang as never }, s.intro(person.name, guidance));
   g.say({ voice: s.voice as never, language: s.speechLang as never }, s.prompt);
   // Reached only if Gather times out with no input.
   r.redirect({ method: "POST" }, `${resultUrl(cfg, person.id, lang, attempt)}&noinput=1`);
