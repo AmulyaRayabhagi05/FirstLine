@@ -5,6 +5,15 @@
 *.pem
 !db/tiger/timescale-ca.pem
 *.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+*credentials*.json
+service-account*.json
+.npmrc
+*.token
 
 # Node
 node_modules/
@@ -42,5 +51,5 @@ desktop.ini
 .idea/
 *.log
 
-# SpacetimeDB identity token saved by the agent worker
-.spacetime-token
+# SpacetimeDB identity token saved by the agent worker (also e.g. .spacetime-token.bak)
+.spacetime-token*
