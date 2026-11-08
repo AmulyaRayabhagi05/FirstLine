@@ -8,7 +8,7 @@
 
 import { DbConnection } from '../module_bindings';
 import { DALLAS_NEIGHBORHOODS, homes, project, type Status } from '../sim/world';
-import { useMap, type ActionKind, type AgentLine, type AssignmentInfo, type IncidentReport, type KeyPassInfo, type Resident, type TriageInfo } from '../state/store';
+import { useMap, type ActionKind, type AgentLine, type AssignmentInfo, type IncidentReport, type KeyPassInfo, type Resident, type TriageInfo, type WaveStat } from '../state/store';
 import { toMapStatus } from './spacetime';
 
 export const SPACETIME_HOST: string = (import.meta.env.VITE_SPACETIME_HOST as string) || 'http://127.0.0.1:3000';
@@ -323,6 +323,38 @@ function snapshot(conn: DbConnection) {
     }))
     .sort((a, b) => b.at - a.at);
 
+  // This event's response, straight from the rows: who asked for help, how fast Nemotron triaged them.
+  const WINDOW = 12 * 60 * 60 * 1000;
+  const waveSos = sosAll.filter((s) => now - ms(s.createdAt)! < WINDOW);
+  let wave: WaveStat | null = null;
+  if (waveSos.length > 0) {
+    const firstSos = new Map<string, number>();
+    for (const s of waveSos) {
+      const k = key(s.personId);
+      const t = ms(s.createdAt)!;
+      if (!firstSos.has(k) || t < firstSos.get(k)!) firstSos.set(k, t);
+    }
+    let lastTriage = 0;
+    let triaged = 0;
+    for (const [pid, t0] of firstSos) {
+      const t = triages.filter((x) => key(x.personId) === pid && ms(x.createdAt)! >= t0 - 1000).map((x) => ms(x.createdAt)!);
+      if (t.length) {
+        triaged++;
+        lastTriage = Math.max(lastTriage, Math.min(...t));
+      }
+    }
+    const start = Math.min(...firstSos.values());
+    const waveIds = new Set(waveSos.map((s) => key(s.id)));
+    const end = triaged < firstSos.size ? now : lastTriage;
+    wave = {
+      people: firstSos.size,
+      triaged,
+      minutes: Math.max(1, Math.round((end - start) / 60_000)),
+      neighbors: new Set(assignments.filter((a) => waveIds.has(key(a.sosId)) && a.state !== 'declined' && a.state !== 'timed_out').map((a) => key(a.sosId))).size,
+      escalated: waveSos.filter((s) => s.state === 'escalated').length,
+    };
+  }
+
   const st = useMap.getState();
   st.setLive({ residents, feed, reports });
   st.setLiveInfo({
@@ -334,6 +366,7 @@ function snapshot(conn: DbConnection) {
     agentSteps: steps.length,
     activeKeyPasses: keyPasses.filter((k) => !k.revoked && ms(k.expiresAt)! > now).length,
     lastUpdate: now,
+    wave,
   });
 }
 

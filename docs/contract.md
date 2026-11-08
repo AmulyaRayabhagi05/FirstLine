@@ -89,6 +89,12 @@ From helpers:
   identity or staff. Accepting moves an `open` SOS to `assigned`; an `escalated` SOS stays
   `escalated` (a neighbor on the way does not take it off the responders' list).
 
+After the event (owner only):
+- `purge_event(confirm, include_people)`: with `confirm` = `DELETE EVENT DATA`, deletes every SOS,
+  check-in, signal, triage, assignment, key pass, incident report, agent step and action request.
+  `include_people` also deletes residents, households and safety nets; otherwise people stay
+  registered and reset to `unknown`. One `audit_log` row records it.
+
 From the dashboard (staff only, not viewers):
 - `request_action(person_id, action, note)`: asks the agents to act now. The worker answers with
   `finish_action(request_id, state, result)` (worker only).

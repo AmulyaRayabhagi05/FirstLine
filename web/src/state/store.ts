@@ -117,6 +117,16 @@ export interface LiveInfo {
   lastUpdate: number;
   /** Connected with the public read-only viewer token: can read, cannot write. */
   viewer: boolean;
+  /** This event's response, measured from the database: everyone who asked for help in the last 12 h. */
+  wave: WaveStat | null;
+}
+
+export interface WaveStat {
+  people: number; // distinct people with an SOS in the window
+  triaged: number; // of those, triaged by Nemotron
+  minutes: number; // first SOS to latest triage (or to now while some are untriaged)
+  neighbors: number; // SOS events with a neighbor offered or on the way
+  escalated: number; // SOS events escalated to professional responders
 }
 
 export interface MapState {
@@ -175,7 +185,7 @@ export const useMap = create<MapState>((set, get) => ({
   residents: homes.map(() => null),
   feed: [],
   reports: [],
-  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0, viewer: false },
+  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0, viewer: false, wave: null },
   version: 0,
   cam: { x: 0, z: 0, theta: 0.75 },
   panTo: null,
@@ -209,7 +219,7 @@ export const useMap = create<MapState>((set, get) => ({
       reports: [],
       selectedId: null,
       version: s.version + 1,
-      liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0, viewer: false },
+      liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0, viewer: false, wave: null },
     })),
   signedIn: false,
   setSignedIn: (v) => set({ signedIn: v }),

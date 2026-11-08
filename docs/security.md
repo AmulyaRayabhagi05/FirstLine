@@ -115,3 +115,13 @@ Keeping the repo free of secrets:
 - If a secret is ever committed, rotate it first; rewriting history does not un-leak a pushed key.
 - Deployments: always set `TWILIO_AUTH_TOKEN` and `PUBLIC_BASE_URL`; never set
   `TWILIO_ALLOW_UNSIGNED`; keep `COMMS_LOG_TEXT` unset.
+
+## Retention
+
+Opt-in only: residents register themselves (or a neighbor registers them with consent). Phones,
+addresses and health details are readable only by staff and the worker; the public viewer sees
+no phone numbers or identities. After the event the owner runs
+
+    spacetime call --server maincloud firstline purge_event -- '"DELETE EVENT DATA"' true
+
+which deletes everything recorded about the event and, with `true`, the residents themselves.
