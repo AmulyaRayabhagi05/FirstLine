@@ -41,3 +41,6 @@ desktop.ini
 .vscode/
 .idea/
 *.log
+
+# SpacetimeDB identity token saved by the agent worker
+.spacetime-token
