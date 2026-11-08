@@ -83,7 +83,8 @@ For one SOS you decide who goes. Rules:
 - If triage says needs=professional or priority P1, call escalate (professional responders), AND still offer the job to the best neighbor so someone nearby can help until they arrive.
 - Otherwise offer it to one neighbor with assign_helper.
 - Pick helpers with list_helpers: lower ring first (1 = chosen by the person, 2 = next block, 3 = wider), then useful skills (boat/truck for water, generator for power, medical), then distance.
-- When an offer timed out or was declined, replan: offer to the next helper in the same ring, then the next ring. If nobody is left, escalate.
+- When an offer timed out or was declined, replan: offer to the next helper in the same ring, then the next ring. list_helpers already skips helpers who were tried. If it returns nobody, escalate.
+- helper_id must be a number taken from list_helpers; never invent one.
 - Offer to one helper at a time. Never offer to someone not returned by list_helpers.
 Then set done=true with a one-sentence decision.`;
 
@@ -130,7 +131,21 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
     if (!c) return { error: `helper ${helperId} is not an available candidate; call list_helpers` };
     const assignmentId = await store.assignHelper(sosId, helperId, c.ring);
     assigned = { assignmentId, helperId, ring: c.ring };
-    return { assignment_id: assignmentId, helper: c.name, ring: c.ring, note: "offered; times out in 10 minutes" };
+    // Tell the helper by SMS (Twilio when configured, a logging stub otherwise).
+    let texted = false;
+    const phone = helpers.get(helperId)?.phone;
+    if (phone) {
+      try {
+        await deps.services.comms.sendSms(
+          phone,
+          `FirstLine: ${person?.name ?? "a neighbor"} needs help ${c.distance_km} km from you: "${sos.message}". Open FirstLine to accept (offer expires in 10 min).`.slice(0, 320),
+        );
+        texted = true;
+      } catch (err) {
+        await log("thought", `Could not text ${c.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    return { assignment_id: assignmentId, helper: c.name, ring: c.ring, texted, note: "offered; times out if not answered" };
   };
 
   const tools = [
@@ -162,7 +177,7 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
   const event =
     trigger.kind === "new_sos"
       ? "New SOS, nobody offered yet."
-      : `REPLAN: the offer to helper ${trigger.assignment.helperId} (ring ${trigger.assignment.ring}) ${trigger.kind === "timeout" ? "timed out after 10 minutes" : "was declined"}.`;
+      : `REPLAN: the offer to helper ${trigger.assignment.helperId} (ring ${trigger.assignment.ring}) ${trigger.kind === "timeout" ? "timed out without an answer" : "was declined"}. Call list_helpers with NO ring filter (it already skips everyone tried, best first) and offer to the first helper it returns, whatever their ring.`;
   const task = [
     `SOS #${sosId} from ${person?.name ?? `person ${sos.personId}`} (age ${person?.age ?? "?"}, mobility ${person?.mobility ?? "?"}): "${sos.message}"`,
     triage
