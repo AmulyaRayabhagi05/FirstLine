@@ -284,3 +284,9 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
 .wavestat .small { font-size: 11px; line-height: 1.4; margin-top: 6px; color: var(--warm); }
 .wavestat .muted { color: var(--muted); }
 .livebar .privacy { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+/* Shown instead of a black screen if a panel crashes */
+.crashpanel { right: max(var(--gut), env(safe-area-inset-right, 0px)); top: calc(64px + env(safe-area-inset-top, 0px)); width: 340px; padding: 14px; z-index: 60; }
+.crashpanel .label { color: var(--p1); margin-bottom: 6px; }
+.crashpanel .muted { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.crashpanel .crashbtns { display: flex; gap: 8px; margin-top: 12px; }

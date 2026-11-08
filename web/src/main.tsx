@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { ErrorBoundary } from './hud/ErrorBoundary';
 import { startLive } from './data/live';
 import './styles.css';
 
@@ -23,6 +24,8 @@ adminKey().then((key) => (key ? startLive(key) : startLive()));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary label="FirstLine">
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
