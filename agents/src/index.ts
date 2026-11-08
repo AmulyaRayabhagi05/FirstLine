@@ -1,4 +1,4 @@
-// Porchlight agent worker: wires store subscriptions to the Nemotron agents.
+// FirstLine agent worker: wires store subscriptions to the Nemotron agents.
 //   new SOS            -> triage -> dispatch
 //   offer timed out    -> dispatch (replan)
 //   offer declined     -> dispatch (replan)

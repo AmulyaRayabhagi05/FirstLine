@@ -25,7 +25,7 @@ const langOf = (language: string | undefined): Lang => (language?.toLowerCase().
 const SCRIPT: Record<Lang, { intro: (name: string) => string; prompt: string; safe: string; help: string; unclear: string; noInput: string; voice: string; speechLang: string }> = {
   en: {
     intro: (name) =>
-      `Hello ${name}, this is Porchlight, your neighborhood safety check. ` +
+      `Hello ${name}, this is FirstLine, your neighborhood safety check. ` +
       "Is your home too hot, or is the power out? " +
       "If you are running a generator, keep it outside, away from windows, because of carbon monoxide. " +
       "If you use oxygen or another powered medical device, tell us if it is losing power.",
@@ -39,7 +39,7 @@ const SCRIPT: Record<Lang, { intro: (name: string) => string; prompt: string; sa
   },
   es: {
     intro: (name) =>
-      `Hola ${name}, le llama Porchlight, la revisión de seguridad de su vecindario. ` +
+      `Hola ${name}, le llama FirstLine, la revisión de seguridad de su vecindario. ` +
       "¿Hace demasiado calor en su casa, o no hay electricidad? " +
       "Si usa un generador, déjelo afuera, lejos de las ventanas, por el monóxido de carbono. " +
       "Si usa oxígeno u otro equipo médico eléctrico, díganos si se está quedando sin energía.",

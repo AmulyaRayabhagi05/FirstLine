@@ -33,7 +33,7 @@ describe('scoreRow (pure)', () => {
 
 // ---------------------------------------------------------------------------
 // SQL against a real TimescaleDB. Set TIGER_TEST_DATABASE_URL to a server you can CREATE DATABASE on,
-// e.g. postgres://postgres:porchlight@localhost:55432/postgres (see db/tiger/README.md).
+// e.g. postgres://postgres:firstline@localhost:55432/postgres (see db/tiger/README.md).
 // ---------------------------------------------------------------------------
 const ADMIN_URL = process.env.TIGER_TEST_DATABASE_URL;
 
@@ -53,7 +53,7 @@ const dbUp = await reachable(ADMIN_URL);
 if (!dbUp) console.warn('[tiger.test] SQL tests skipped: set TIGER_TEST_DATABASE_URL to a reachable TimescaleDB');
 
 describe.skipIf(!dbUp)('Tiger SQL (local TimescaleDB)', () => {
-  const dbName = `porchlight_test_${Date.now()}`;
+  const dbName = `firstline_test_${Date.now()}`;
   let pool: pg.Pool;
   const cell = pointCell(32.7767, -96.797);
   const otherCell = pointCell(32.9, -96.7);

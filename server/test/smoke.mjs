@@ -1,19 +1,19 @@
 #!/usr/bin/env node
-// Smoke test for the Porchlight module against a local SpacetimeDB.
-// Publishes a fresh database (default name "porchlight-smoke", data wiped), then drives it with
+// Smoke test for the FirstLine module against a local SpacetimeDB.
+// Publishes a fresh database (default name "firstline-smoke", data wiped), then drives it with
 // `spacetime call` and checks state with `spacetime sql`.
 //
 //   spacetime start                 # in another terminal
 //   cd server && npm install && node test/smoke.mjs
 //
-// Env: STDB_SERVER (default "local"), STDB_DB (default "porchlight-smoke"), SKIP_PUBLISH=1.
+// Env: STDB_SERVER (default "local"), STDB_DB (default "firstline-smoke"), SKIP_PUBLISH=1.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { latLngToCell } from 'h3-js';
 
 const SERVER = process.env.STDB_SERVER ?? 'local';
-const DB = process.env.STDB_DB ?? 'porchlight-smoke';
+const DB = process.env.STDB_DB ?? 'firstline-smoke';
 const MODULE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

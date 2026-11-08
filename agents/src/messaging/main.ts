@@ -1,5 +1,5 @@
 // Standalone runner: `npx tsx src/messaging/main.ts`.
-// Uses the in-memory store until the coordinator swaps in the SpacetimeDB-backed PorchlightStore.
+// Uses the in-memory store until the coordinator swaps in the SpacetimeDB-backed FirstLineStore.
 
 import { InMemoryChannelStore, type ChannelPerson } from "./store.js";
 import { createTwilioClient, twilioConfigFromEnv } from "./twilio.js";

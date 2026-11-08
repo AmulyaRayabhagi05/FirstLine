@@ -1,4 +1,4 @@
-// Meshtastic LoRa -> MQTT -> Porchlight bridge.
+// Meshtastic LoRa -> MQTT -> FirstLine bridge.
 //
 // A Meshtastic gateway node with MQTT + "JSON enabled" publishes every packet it hears to
 //   <root>/2/json/<CHANNEL>/<!gatewayId>        (root defaults to msh/<REGION>, e.g. msh/US)
@@ -148,7 +148,7 @@ export class MeshtasticBridge {
     const text =
       typeof pkt.payload === "string" ? pkt.payload : String((pkt.payload as { text?: unknown })?.text ?? "");
     const person = await this.opts.resolveNode?.(nodeId);
-    const isCommand = /^\s*pl\b/i.test(text);
+    const isCommand = /^\s*fl\b/i.test(text);
     // Plain chatter on the mesh from unknown nodes is not for us; don't reply (avoids loops).
     if (!isCommand && !person) return { status: "ignored" };
 
@@ -196,9 +196,9 @@ export class MeshtasticBridge {
 }
 
 function shortReply(o: InboundOutcome): string {
-  if (o.action === "sos") return "PL: help request received";
-  if (o.action === "check_in") return "PL: marked safe, thank you";
-  return 'PL: not understood. Send "PL SOS", "PL OK" or "PL HELP <need>"';
+  if (o.action === "sos") return "FL: help request received";
+  if (o.action === "check_in") return "FL: marked safe, thank you";
+  return 'FL: not understood. Send "FL SOS", "FL OK" or "FL HELP <need>"';
 }
 
 const meshSendInput = z.object({

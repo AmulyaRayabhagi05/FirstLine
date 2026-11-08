@@ -1,6 +1,6 @@
 # server
 
-Porchlight's SpacetimeDB module, written in TypeScript (SpacetimeDB CLI 2.14). It holds every
+FirstLine's SpacetimeDB module, written in TypeScript (SpacetimeDB CLI 2.14). It holds every
 table and reducer named in [`docs/contract.md`](../docs/contract.md): people, households, safety
 nets, SOS events, check-ins, triage, assignments, key passes, incident reports, the agents'
 reasoning steps (`agent_step`) and the audit log. Source: [`src/index.ts`](src/index.ts).
@@ -11,16 +11,16 @@ reasoning steps (`agent_step`) and the audit log. Source: [`src/index.ts`](src/i
 spacetime start                      # terminal 1: local server on http://127.0.0.1:3000
 cd server
 npm install
-spacetime publish porchlight --server local --module-path . --yes
+spacetime publish firstline --server local --module-path . --yes
 ```
 
 Add `--delete-data=always` to wipe the database when the schema changes in a way that can't
-migrate. Logs: `spacetime logs porchlight --server local -f`.
+migrate. Logs: `spacetime logs firstline --server local -f`.
 
 After the first publish, connect the agent worker (the publisher's identity is the module owner):
 
 ```bash
-spacetime call --server local porchlight set_worker_identity '"0x<worker identity hex>"'
+spacetime call --server local firstline set_worker_identity '"0x<worker identity hex>"'
 ```
 
 This works once. Worker-only reducers (`save_triage`, `assign_helper`, `escalate`,
@@ -34,7 +34,7 @@ it too).
 
 Calling reducers from the CLI: strings are JSON (`'"text"'`), options are `'{"some":0.9}'` or
 `'{"none":[]}'`, and put `--` before the database name when an argument is negative:
-`spacetime call -s local -- porchlight press_sos '"c1"' 1 '"help"' 32.98 -96.75 '"app"'`.
+`spacetime call -s local -- firstline press_sos '"c1"' 1 '"help"' 32.98 -96.75 '"app"'`.
 
 ## Smoke test
 
@@ -45,7 +45,7 @@ npm install
 node test/smoke.mjs                  # or: npm run smoke
 ```
 
-It publishes a separate database, `porchlight-smoke`, with fresh data, then checks: 3 people
+It publishes a separate database, `firstline-smoke`, with fresh data, then checks: 3 people
 registered with the right res-9 `h3_cell`, input validation, safety net replace, `press_sos` and
 `check_in` idempotent on `client_id`, worker-only reducers refusing an anonymous identity,
 assign / decline / accept, key pass refused without an SOS for that household or without
@@ -53,7 +53,7 @@ approval, granted with both, `log_unlock`, revoke, unlock after revoke refused, 
 row for every key-pass call, assignment timeout and key pass expiry (timers shortened to 5 s
 and 8 s), the scheduled 30-second recount, `coverage_gap`, `mark_safe`, `escalate` and
 incident reports. Takes about a minute. Env: `STDB_SERVER` (default `local`), `STDB_DB`
-(default `porchlight-smoke`), `SKIP_PUBLISH=1`.
+(default `firstline-smoke`), `SKIP_PUBLISH=1`.
 
 ## Client bindings
 

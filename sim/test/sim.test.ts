@@ -3,7 +3,7 @@ import { DEMO, generateWorld } from "../src/generate.js";
 import { DryRunStore } from "../src/loaders/dryrun.js";
 import { applyEvent, loadWorld } from "../src/loaders/spacetime.js";
 import { loadTiger, tigerRows, type PgLike } from "../src/loaders/tiger.js";
-import { compare, runPorchlight } from "../src/measure.js";
+import { compare, runFirstLine } from "../src/measure.js";
 import { NEIGHBORHOODS } from "../src/data.js";
 import { generateStorm, helperDecision, playStorm } from "../src/storm.js";
 
@@ -26,7 +26,7 @@ describe("determinism", () => {
   it("measurement is reproducible", () => {
     const a = compare(world, storm);
     const b = compare(world, storm);
-    expect(a.porchlight.stats).toEqual(b.porchlight.stats);
+    expect(a.firstline.stats).toEqual(b.firstline.stats);
     expect(a.baseline.stats).toEqual(b.baseline.stats);
   });
 });
@@ -108,8 +108,8 @@ describe("demo characters", () => {
     expect(big.people.slice(0, 5).map((x) => x.name)).toEqual(world.people.slice(0, 5).map((x) => x.name));
   });
 
-  it("Porchlight reaches Rosa's mother via Linh and finds Mr. Lee", () => {
-    const r = runPorchlight(world, storm);
+  it("FirstLine reaches Rosa's mother via Linh and finds Mr. Lee", () => {
+    const r = runFirstLine(world, storm);
     const mother = r.cases.find((c) => c.personId === DEMO.rosaMother)!;
     const lee = r.cases.find((c) => c.personId === DEMO.mrLee)!;
     expect(mother.reachedAt).toBeDefined();
@@ -172,22 +172,22 @@ describe("loaders", () => {
 });
 
 describe("measure", () => {
-  it("Porchlight reaches more critical cases within 60 minutes than calls-only", () => {
+  it("FirstLine reaches more critical cases within 60 minutes than calls-only", () => {
     const c = compare(world, storm);
-    expect(c.porchlight.stats.critical).toBe(c.baseline.stats.critical);
-    expect(c.porchlight.stats.within60).toBeGreaterThan(c.baseline.stats.within60);
+    expect(c.firstline.stats.critical).toBe(c.baseline.stats.critical);
+    expect(c.firstline.stats.within60).toBeGreaterThan(c.baseline.stats.within60);
   });
 
   it("every sensitivity knob reaches the model", () => {
     const base = compare(world, storm);
-    const key = (r: ReturnType<typeof compare>, s: "baseline" | "porchlight") => JSON.stringify(r[s].cases.map((c) => c.reachedAt));
+    const key = (r: ReturnType<typeof compare>, s: "baseline" | "firstline") => JSON.stringify(r[s].cases.map((c) => c.reachedAt));
     // EMS capacity and third-party calls change who EMS reaches (visible in the baseline).
     expect(key(compare(world, storm, { proUnits: 0 }), "baseline")).not.toEqual(key(base, "baseline"));
     expect(key(compare(world, storm, { thirdPartyCallP: 0 }), "baseline")).not.toEqual(key(base, "baseline"));
-    // Triage misses change Porchlight outcomes once non-urgent requests are not dispatched at once.
+    // Triage misses change FirstLine outcomes once non-urgent requests are not dispatched at once.
     const slowP3 = compare(world, storm, { p3DelayMin: 60, triageMissP: 0 });
     const slowP3Miss = compare(world, storm, { p3DelayMin: 60, triageMissP: 1 });
-    expect(slowP3Miss.porchlight.stats.within60).toBeLessThan(slowP3.porchlight.stats.within60);
-    expect(key(compare(world, storm, { acceptScale: 0.5 }), "porchlight")).not.toEqual(key(base, "porchlight"));
+    expect(slowP3Miss.firstline.stats.within60).toBeLessThan(slowP3.firstline.stats.within60);
+    expect(key(compare(world, storm, { acceptScale: 0.5 }), "firstline")).not.toEqual(key(base, "firstline"));
   });
 });

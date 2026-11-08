@@ -12,7 +12,7 @@ import {
   type Listener,
   type LogAgentStepArgs,
   type Person,
-  type PorchlightStore,
+  type FirstLineStore,
   type PressSosArgs,
   type PriorityCategory,
   type RegisterPersonArgs,
@@ -39,7 +39,7 @@ export interface InMemoryStoreOptions {
  * docs/contract.md closely enough for tests and the offline demo. The module's scheduled
  * 10-minute assignment timeout is simulated by calling `tick(now)`.
  */
-export class InMemoryStore implements PorchlightStore {
+export class InMemoryStore implements FirstLineStore {
   readonly people = new Map<Id, Person>();
   readonly households = new Map<Id, Household>();
   readonly cells = new Map<string, HexCell>();

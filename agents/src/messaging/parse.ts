@@ -1,9 +1,9 @@
 // Parser for the compact text format shared by SMS and Meshtastic:
-//   PL SOS 32.78,-96.80 2ppl insulin
-//   PL OK
-//   PL HELP <free text>
+//   FL SOS 32.78,-96.80 2ppl insulin
+//   FL OK
+//   FL HELP <free text>
 // Optional "#<personId>" anywhere after the verb names the person (used from mesh radios and
-// shared phones). Anything without the "PL" prefix is free text.
+// shared phones). Anything without the "FL" prefix is free text.
 
 export type ParsedMessage =
   | {
@@ -31,12 +31,12 @@ export function parseMessage(raw: string): ParsedMessage {
   const text = raw.replace(/\s+/g, " ").trim();
   if (!text) return { kind: "malformed", text: raw, reason: "empty message" };
 
-  const prefix = /^pl\b[\s:.-]*/i.exec(text);
+  const prefix = /^fl\b[\s:.-]*/i.exec(text);
   if (!prefix) return { kind: "free", text };
 
   let rest = text.slice(prefix[0].length);
   const verbMatch = /^(\S+)\s*/.exec(rest);
-  if (!verbMatch) return { kind: "malformed", text, reason: "missing command after PL" };
+  if (!verbMatch) return { kind: "malformed", text, reason: "missing command after FL" };
   const verb = verbMatch[1].toLowerCase();
   rest = rest.slice(verbMatch[0].length);
 

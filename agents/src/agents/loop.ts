@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type { ChatMessage, LlmClient } from "../llm/client.js";
 import { BadJsonError, jsonCall } from "../llm/json.js";
-import type { AgentName, AgentStepKind, PorchlightStore } from "../store/types.js";
+import type { AgentName, AgentStepKind, FirstLineStore } from "../store/types.js";
 import type { Services } from "./services.js";
 
 export interface Tool<S extends z.ZodType = z.ZodType> {
@@ -20,7 +20,7 @@ export function defineTool<S extends z.ZodType>(tool: Tool<S>): Tool<S> {
 }
 
 export interface AgentDeps {
-  store: PorchlightStore;
+  store: FirstLineStore;
   llm: LlmClient;
   services: Services;
   now?: () => Date;
@@ -113,7 +113,7 @@ export interface LoopArgs {
 
 export const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-export function stepLogger(store: PorchlightStore, agent: AgentName, subject: string) {
+export function stepLogger(store: FirstLineStore, agent: AgentName, subject: string) {
   return async (kind: AgentStepKind, content: string, conf?: number) => {
     try {
       await store.logAgentStep({ agent, subject, kind, content: truncate(content, 500), confidence: conf });

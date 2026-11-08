@@ -1,8 +1,8 @@
-# Porchlight backend contract
+# FirstLine backend contract
 
 Every backend branch codes against these names. Changing a table, column or reducer name or
 argument here is a breaking change: update this file in the same commit and say so in the
-commit message. Source of truth for the product: the "Porchlight: Devpost Submission and
+commit message. Source of truth for the product: the "FirstLine: Devpost Submission and
 Build Setup" doc (both tabs).
 
 ## Decisions
@@ -92,13 +92,13 @@ Folders, one owner branch each:
 - `agents/src/messaging/` (messaging branch)
 - `sim/` (sim branch)
 
-`agents/src/store/types.ts` defines `PorchlightStore`: one async method per worker reducer above
+`agents/src/store/types.ts` defines `FirstLineStore`: one async method per worker reducer above
 (camelCase: `saveTriage`, `assignHelper`, ...) plus reads (`getPerson`, `getSafetyNet`,
 `listOpenSos`, `listTimedOutAssignments`, `listUnknownPeople`, `getCell`) and an
 `onSos` / `onSignal` / `onAssignmentTimeout` subscription API. Branches that need it import the
 type and use `InMemoryStore` for tests; the real SpacetimeDB adapter is wired at integration.
 
-Messaging and sim call reducers through the same `PorchlightStore` (`pressSos`, `checkIn`,
+Messaging and sim call reducers through the same `FirstLineStore` (`pressSos`, `checkIn`,
 `registerPerson`, `setSafetyNet`, `reportSignal`), so the worker branch's `store/types.ts` must
 include those too.
 

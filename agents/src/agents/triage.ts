@@ -65,7 +65,7 @@ function salvageTriage(v: unknown): z.infer<typeof saveTriageInput> | undefined 
   return undefined;
 }
 
-const INSTRUCTIONS = `You are the TRIAGE agent for Porchlight, a disaster-response network of neighbors.
+const INSTRUCTIONS = `You are the TRIAGE agent for FirstLine, a disaster-response network of neighbors.
 You read one SOS message (any language: Spanish, Vietnamese, English, ...) and decide:
 - urgency 1-5 (5 = life threat right now)
 - needs: "professional" (EMS, fire, swift-water rescue, medical) or "neighbor" (a nearby person with a truck, boat, generator or supplies can handle it)

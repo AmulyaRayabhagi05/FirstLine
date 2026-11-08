@@ -31,12 +31,12 @@ function post(url: string, params: Record<string, string>, headers: Record<strin
 
 describe("Twilio signature", () => {
   const url = "https://example.ngrok.app/sms";
-  const params = { From: "+12145550114", Body: "PL OK", MessageSid: "SM1" };
+  const params = { From: "+12145550114", Body: "FL OK", MessageSid: "SM1" };
   const good = twilio.getExpectedTwilioSignature(TOKEN, url, params);
 
   it("accepts a valid signature and rejects tampering", () => {
     expect(isValidTwilioRequest(TOKEN, good, url, params)).toBe(true);
-    expect(isValidTwilioRequest(TOKEN, good, url, { ...params, Body: "PL SOS" })).toBe(false);
+    expect(isValidTwilioRequest(TOKEN, good, url, { ...params, Body: "FL SOS" })).toBe(false);
     expect(isValidTwilioRequest(TOKEN, undefined, url, params)).toBe(false);
   });
 
@@ -56,20 +56,20 @@ describe("Twilio signature", () => {
 });
 
 describe("SMS webhook", () => {
-  it("PL SOS from any number creates an sms SOS with coords and replies TwiML", async () => {
+  it("FL SOS from any number creates an sms SOS with coords and replies TwiML", async () => {
     const { base, store } = await start({});
-    const res = await post(`${base}/sms`, { From: "+19725550000", Body: "PL SOS 32.78,-96.80 2ppl insulin", MessageSid: "SMa" });
+    const res = await post(`${base}/sms`, { From: "+19725550000", Body: "FL SOS 32.78,-96.80 2ppl insulin", MessageSid: "SMa" });
     expect(res.headers.get("content-type")).toContain("text/xml");
     const body = await res.text();
-    expect(body).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?><Response><Message>Porchlight: help request received/);
+    expect(body).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?><Response><Message>FirstLine: help request received/);
     expect(store.sos).toEqual([
       { clientId: "sms:SMa", personId: 0, message: "SOS (2 people): insulin", lat: 32.78, lng: -96.8, channel: "sms" },
     ]);
   });
 
-  it("PL OK from a known phone checks the person in as safe", async () => {
+  it("FL OK from a known phone checks the person in as safe", async () => {
     const { base, store } = await start({});
-    await post(`${base}/sms`, { From: "(214) 555-0114", Body: "PL OK", MessageSid: "SMb" });
+    await post(`${base}/sms`, { From: "(214) 555-0114", Body: "FL OK", MessageSid: "SMb" });
     expect(store.checkIns).toEqual([{ clientId: "sms:SMb", personId: 14, kind: "sms", result: "safe", note: "" }]);
   });
 
@@ -86,16 +86,16 @@ describe("SMS webhook", () => {
     expect(body).toContain("we do not know this number");
   });
 
-  it("malformed PL text gets a usage reply", async () => {
+  it("malformed FL text gets a usage reply", async () => {
     const { base, store } = await start({});
-    const body = await (await post(`${base}/sms`, { From: "+12145550114", Body: "PL DANCE", MessageSid: "SMe" })).text();
+    const body = await (await post(`${base}/sms`, { From: "+12145550114", Body: "FL DANCE", MessageSid: "SMe" })).text();
     expect(body).toContain("could not read that");
     expect(store.sos).toHaveLength(0);
   });
 
   it("is idempotent on a repeated MessageSid (Twilio retries)", async () => {
     const { base, store } = await start({});
-    const p = { From: "+12145550114", Body: "PL HELP need insulin", MessageSid: "SMdup" };
+    const p = { From: "+12145550114", Body: "FL HELP need insulin", MessageSid: "SMdup" };
     await post(`${base}/sms`, p);
     await post(`${base}/sms`, p);
     expect(store.sos).toHaveLength(1);

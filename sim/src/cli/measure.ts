@@ -1,5 +1,5 @@
 // npm run measure [-- --seeds 5 --seed 20210214 --n 5000]
-// Runs calls-only vs Porchlight over the same storms and prints the numbers for the writeup.
+// Runs calls-only vs FirstLine over the same storms and prints the numbers for the writeup.
 import { DEFAULT_N, DEFAULT_SEED, generateWorld } from "../generate.js";
 import { parseArgs, writeOut } from "../io.js";
 import { compare, DEFAULT_PARAMS, type Comparison, type MeasureParams } from "../measure.js";
@@ -29,7 +29,7 @@ const fmt = (xs: number[]) => {
 const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
 function table(rs: Comparison[]) {
-  const rows: [string, (c: Comparison, s: "baseline" | "porchlight") => number][] = [
+  const rows: [string, (c: Comparison, s: "baseline" | "firstline") => number][] = [
     ["critical reached within 30 min", (c, s) => pct(c[s].stats.within30, c[s].stats.critical)],
     ["critical reached within 60 min", (c, s) => pct(c[s].stats.within60, c[s].stats.critical)],
     ["critical reached within 120 min", (c, s) => pct(c[s].stats.within120, c[s].stats.critical)],
@@ -37,28 +37,28 @@ function table(rs: Comparison[]) {
     ["silent critical reached within 120 min", (c, s) => pct(c[s].stats.silentWithin120, c[s].stats.silent)],
     ["silent critical reached by morning", (c, s) => pct(c[s].stats.silentReachedByEnd, c[s].stats.silent)],
   ];
-  const out: Record<string, { callsOnly: string; porchlight: string }> = {};
-  for (const [label, f] of rows) out[label] = { callsOnly: fmt(rs.map((c) => f(c, "baseline"))), porchlight: fmt(rs.map((c) => f(c, "porchlight"))) };
+  const out: Record<string, { callsOnly: string; firstline: string }> = {};
+  for (const [label, f] of rows) out[label] = { callsOnly: fmt(rs.map((c) => f(c, "baseline"))), firstline: fmt(rs.map((c) => f(c, "firstline"))) };
   return out;
 }
 
 const main = run({});
-const s0 = main.map((c) => c.porchlight.stats);
+const s0 = main.map((c) => c.firstline.stats);
 const b0 = main.map((c) => c.baseline.stats);
-console.log(`\nPorchlight vs calls-only, ${seeds} storm(s) x ${n} residents (mean, min-max across seeds)\n`);
+console.log(`\nFirstLine vs calls-only, ${seeds} storm(s) x ${n} residents (mean, min-max across seeds)\n`);
 console.log(`critical cases per storm: ${mean(s0.map((s) => s.critical)).toFixed(0)}  (silent, never asked for help: ${mean(s0.map((s) => s.silent)).toFixed(0)})`);
 console.table(table(main));
 console.log(
-  `median minutes onset -> someone at the door: calls-only ${mean(b0.map((s) => s.medianMin)).toFixed(0)}, porchlight ${mean(s0.map((s) => s.medianMin)).toFixed(0)}`,
+  `median minutes onset -> someone at the door: calls-only ${mean(b0.map((s) => s.medianMin)).toFixed(0)}, firstline ${mean(s0.map((s) => s.medianMin)).toFixed(0)}`,
 );
 const ps = (k: string) => mean(s0.map((s) => s[k] ?? 0)).toFixed(0);
 console.log(
-  `porchlight work per storm: ${ps("sosRequests")} SOS, ${ps("autoCalls")} automated check-in calls (${ps("autoCallsAnswered")} answered), ` +
+  `firstline work per storm: ${ps("sosRequests")} SOS, ${ps("autoCalls")} automated check-in calls (${ps("autoCallsAnswered")} answered), ` +
     `${ps("neighborChecks")} neighbor checks (${ps("checksFoundCritical")} found a critical case), ${ps("offers")} helper offers ` +
     `(${ps("accepts")} accepted, ${ps("declines")} declined, ${ps("timeouts")} timed out), ${ps("escalations")} escalated to EMS`,
 );
 
-console.log("\nSensitivity (calls-only -> porchlight; same storms, one change per row):");
+console.log("\nSensitivity (calls-only -> firstline; same storms, one change per row):");
 const sens: [string, Partial<MeasureParams>][] = [
   ["defaults", {}],
   ["neighbors accept half as often", { acceptScale: 0.5 }],
@@ -73,7 +73,7 @@ const sensOut: Record<string, { within60: string; byMorning: string }> = {};
 for (const [label, params] of sens) {
   const rs = label === "defaults" ? main : run(params);
   const cell = (k: "within60" | "reachedByEnd") =>
-    `${fmt(rs.map((c) => pct(c.baseline.stats[k], c.baseline.stats.critical)))} -> ${fmt(rs.map((c) => pct(c.porchlight.stats[k], c.porchlight.stats.critical)))}`;
+    `${fmt(rs.map((c) => pct(c.baseline.stats[k], c.baseline.stats.critical)))} -> ${fmt(rs.map((c) => pct(c.firstline.stats[k], c.firstline.stats.critical)))}`;
   sensOut[label] = { within60: cell("within60"), byMorning: cell("reachedByEnd") };
 }
 console.table(sensOut);
@@ -84,6 +84,6 @@ const path = writeOut("measure.json", {
   params: DEFAULT_PARAMS,
   table: table(main),
   sensitivity: sensOut,
-  perSeed: main.map((c) => ({ seed: c.seed, callsOnly: c.baseline.stats, porchlight: c.porchlight.stats })),
+  perSeed: main.map((c) => ({ seed: c.seed, callsOnly: c.baseline.stats, firstline: c.firstline.stats })),
 });
 console.log(`\nwrote ${path}`);

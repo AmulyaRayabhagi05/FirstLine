@@ -1,11 +1,11 @@
 {
-  "name": "porchlight-server",
+  "name": "firstline-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Porchlight SpacetimeDB module (TypeScript)",
+  "description": "FirstLine SpacetimeDB module (TypeScript)",
   "scripts": {
     "build": "spacetime build",
-    "publish:local": "spacetime publish porchlight --server local --yes",
+    "publish:local": "spacetime publish firstline --server local --yes",
     "smoke": "node test/smoke.mjs"
   },
   "dependencies": {

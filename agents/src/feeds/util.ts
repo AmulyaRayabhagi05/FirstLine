@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export const H3_RES = 9;
-export const USER_AGENT = 'Porchlight-HackUTD (github.com/Spikestar05/Hope)';
+export const USER_AGENT = 'FirstLine-HackUTD (github.com/Spikestar05/FirstLine)';
 
 /** Dallas-area bounding box (lng/lat) used to scope queries. */
 export const DALLAS_BBOX = { west: -97.05, south: 32.55, east: -96.46, north: 33.03 };
@@ -82,7 +82,7 @@ export async function getJson<T = any>(url: string, init: RequestInit & { timeou
   return (await res.json()) as T;
 }
 
-export const CACHE_DIR = process.env.FEEDS_CACHE_DIR || join(tmpdir(), 'porchlight-feeds-cache');
+export const CACHE_DIR = process.env.FEEDS_CACHE_DIR || join(tmpdir(), 'firstline-feeds-cache');
 
 /** Read a JSON cache file if younger than maxAgeMs, else call load() and write it. */
 export async function cachedJson<T>(name: string, maxAgeMs: number, load: () => Promise<T>): Promise<T> {

@@ -1,4 +1,4 @@
-# Porchlight (repo: Hope)
+# FirstLine
 
 Disaster-response app built at HackUTD. People in trouble send an SOS from their phone,
 responders see it on a live map, and Nemotron agents help triage and plan.

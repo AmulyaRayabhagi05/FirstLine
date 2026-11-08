@@ -47,7 +47,7 @@ export interface ReportOutcome {
   source: "model" | "rules";
 }
 
-const INSTRUCTIONS = `You are the REPORTS agent for Porchlight, a disaster-response network of neighbors.
+const INSTRUCTIONS = `You are the REPORTS agent for FirstLine, a disaster-response network of neighbors.
 Write a short briefing (2-4 sentences, plain English) for professional responders about one neighborhood cell:
 how many people need help or are unaccounted for, the most urgent cases and why, blocked roads, weather.
 Call get_cell_overview first, then get_blocked_roads and get_weather, then save_incident_report, then done=true.`;

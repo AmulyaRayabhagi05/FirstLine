@@ -42,13 +42,13 @@ export async function handleInboundText(
         parsed,
         outcome: {
           action: "rejected",
-          reply: `Porchlight could not read that (${parsed.reason}). Send "PL SOS lat,lng note", "PL OK" or "PL HELP what you need".`,
+          reply: `FirstLine could not read that (${parsed.reason}). Send "FL SOS lat,lng note", "FL OK" or "FL HELP what you need".`,
         },
       };
 
     case "ok": {
       if (!personId) {
-        return { parsed, outcome: { action: "rejected", reply: "Porchlight: this number is not registered. Add #<your id> or text PL SOS if you need help." } };
+        return { parsed, outcome: { action: "rejected", reply: "FirstLine: this number is not registered. Add #<your id> or text FL SOS if you need help." } };
       }
       await store.checkIn({
         clientId: msg.clientId,
@@ -57,7 +57,7 @@ export async function handleInboundText(
         result: "safe",
         note: parsed.note,
       });
-      return { parsed, outcome: { action: "check_in", personId, reply: "Porchlight: marked you safe. Thank you." } };
+      return { parsed, outcome: { action: "check_in", personId, reply: "FirstLine: marked you safe. Thank you." } };
     }
 
     case "sos":
@@ -69,7 +69,7 @@ export async function handleInboundText(
           parsed,
           outcome: {
             action: "rejected",
-            reply: 'Porchlight: we do not know this number. If you need help, text "PL SOS lat,lng what you need".',
+            reply: 'FirstLine: we do not know this number. If you need help, text "FL SOS lat,lng what you need".',
           },
         };
       }
@@ -84,10 +84,10 @@ export async function handleInboundText(
         lng: loc?.lng ?? 0,
         channel: msg.channel,
       });
-      const where = loc ? "" : " We have no location for you: reply with PL SOS lat,lng if you can.";
+      const where = loc ? "" : " We have no location for you: reply with FL SOS lat,lng if you can.";
       return {
         parsed,
-        outcome: { action: "sos", personId: pid, reply: `Porchlight: help request received. Neighbors are being alerted.${where}` },
+        outcome: { action: "sos", personId: pid, reply: `FirstLine: help request received. Neighbors are being alerted.${where}` },
       };
     }
   }

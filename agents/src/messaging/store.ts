@@ -1,5 +1,5 @@
 // Minimal store surface the messaging channels need. Method names and argument shapes follow
-// the reducers in docs/contract.md (camelCase), so at merge this maps 1:1 onto PorchlightStore
+// the reducers in docs/contract.md (camelCase), so at merge this maps 1:1 onto FirstLineStore
 // from agents/src/store/types.ts.
 
 export type SosChannel = "app" | "sms" | "voice" | "mesh";

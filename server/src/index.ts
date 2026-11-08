@@ -1,4 +1,4 @@
-// Porchlight SpacetimeDB module. Names follow docs/contract.md exactly.
+// FirstLine SpacetimeDB module. Names follow docs/contract.md exactly.
 import {
   schema,
   table,

@@ -1,7 +1,7 @@
 # sim
 
 Synthetic Dallas residents, one Uri-like winter-storm night, loaders into SpacetimeDB and Tiger
-Data, and a measurement that compares Porchlight with a calls-only baseline over the same storm.
+Data, and a measurement that compares FirstLine with a calls-only baseline over the same storm.
 Everything is seeded: the same seed gives byte-identical output.
 
 ```bash
@@ -9,7 +9,7 @@ cd sim
 npm install
 npm run seed      # world + storm -> out/*.json (git-ignored)
 npm run storm     # dry run: counts every reducer call and Tiger row
-npm run measure   # Porchlight vs calls-only, 5 seeds, prints the numbers for the writeup
+npm run measure   # FirstLine vs calls-only, 5 seeds, prints the numbers for the writeup
 npm test
 ```
 
@@ -22,7 +22,7 @@ Options: `npm run seed -- --n 5000 --seed 20210214`, `npm run measure -- --seeds
 | `src/generate.ts` | 5,000 residents (default) in 5 real Dallas neighborhoods: North Oak Cliff, Pleasant Grove, Lakewood, Vickery Meadow, West Dallas. Households with addresses, ages (more 65+ in Lakewood and around senior complexes), lives alone, mobility, oxygen / insulin / dialysis, powered devices, phone type, language (en / es / vi), fake phones, safety nets. |
 | `src/storm.ts` | The night (8 pm to 8 am): outdoor temperature, outages spreading by neighborhood, indoor temperature per home, phones dying, check-ins, SOS messages, helper behavior, real-time or N x playback. |
 | `src/messages.ts` | SOS free text in English, Spanish and some Vietnamese. |
-| `src/loaders/types.ts` | `SimStore`: the subset of the worker's `PorchlightStore` the sim writes through (`registerPerson`, `setSafetyNet`, `pressSos`, `checkIn`, `reportSignal`, same signatures). |
+| `src/loaders/types.ts` | `SimStore`: the subset of the worker's `FirstLineStore` the sim writes through (`registerPerson`, `setSafetyNet`, `pressSos`, `checkIn`, `reportSignal`, same signatures). |
 | `src/loaders/spacetime.ts` | `loadWorld`, `applyEvent`, `playIntoStore`, and `startHelperBot` (answers offered assignments the way each helper's profile says). |
 | `src/loaders/tiger.ts` | `readings` (`home_temp_f`, `power_out`, `phone_offline_min`) and `contact_events` rows via `pg` from `TIGER_DATABASE_URL`; skipped if unset. |
 | `src/loaders/dryrun.ts` | Counts calls. |
@@ -44,7 +44,7 @@ The power goes out on their blocks at t+90 (9:30 pm).
 
 - **SpacetimeDB**: `SIM_STORE_MODULE=path/to/store.ts npm run storm -- --target spacetime --speed 60 --helpers`.
   The module must export `createStore(): Promise<SimStore>`; a wrapper around the worker's
-  SpacetimeDB `PorchlightStore` fits as is. `--speed 60` plays one storm hour per minute
+  SpacetimeDB `FirstLineStore` fits as is. `--speed 60` plays one storm hour per minute
   (12-minute demo); `--from 120 --to 240` plays a slice; `--no-register` skips loading people.
   Note: `register_person` creates one household per call, so multi-person sim households become
   separate households in the module (same address).
@@ -97,7 +97,7 @@ strategies. Numbers come from a model with stated assumptions, not field data.
 Everyone who would press SOS calls 911 instead. Generous on purpose: calls are answered
 instantly, call-takers triage perfectly, and non-urgent calls go to 311 without using a unit.
 
-### Porchlight
+### FirstLine
 
 - **Triage**: 1 min; 15% of real emergencies are misread as non-urgent (P3: rings 1 and 2 only,
   no EMS call or escalation; the silent-signal sweep can still catch them later). 10% of non-urgent
@@ -117,7 +117,7 @@ instantly, call-takers triage perfectly, and non-urgent calls go to 311 without 
   failed calls, app heartbeat lost). Score >= 10 gets an automated check-in call (at most hourly).
   It is answered 85% of the time if the phone works (60% if they are in trouble, never after CO or
   a fall). Score >= 14 and no answer sends a neighbor check (max 25 new checks per sweep).
-- In-app check-ins from Porchlight pings (9 pm, midnight, 4 am) count as contact; a
+- In-app check-ins from FirstLine pings (9 pm, midnight, 4 am) count as contact; a
   `needs_help` reply is handled like an SOS.
 
 ### What is counted
@@ -130,7 +130,7 @@ The run continues 3 h past 8 am so late cases can finish.
 
 Mean across seeds, min to max in brackets.
 
-| | Calls only | Porchlight |
+| | Calls only | FirstLine |
 |---|---|---|
 | Critical reached within 30 min | 4% (2-6) | 30% (25-33) |
 | Critical reached within 60 min | 13% (10-16) | 62% (58-67) |
@@ -140,10 +140,10 @@ Mean across seeds, min to max in brackets.
 | Silent critical reached by 11 am | 24% (20-28) | 74% (66-81) |
 | Median minutes, onset to someone at the door | 101 | 41 |
 
-The cost per storm in Porchlight: about 10,700 automated check-in calls, 930 neighbor checks
+The cost per storm in FirstLine: about 10,700 automated check-in calls, 930 neighbor checks
 (about 1 in 7 finds a critical case), 2,400 helper offers (940 accepted, 1,100 timed out).
 
-Sensitivity (calls only -> Porchlight, same 5 storms, one change per row):
+Sensitivity (calls only -> FirstLine, same 5 storms, one change per row):
 
 | Change | Reached within 60 min | Reached by 11 am |
 |---|---|---|
@@ -157,9 +157,9 @@ Sensitivity (calls only -> Porchlight, same 5 storms, one change per row):
 | P3 waits 60 min + triage misses 40% | 13% -> 54% | 43% -> 87% |
 
 Every option is wired into the model; a test (`every sensitivity knob reaches the model`)
-checks this. Some rows barely move Porchlight's number, for these reasons:
+checks this. Some rows barely move FirstLine's number, for these reasons:
 
-- **EMS units and third-party 911 calls.** Both feed only the EMS queue. In Porchlight runs a
+- **EMS units and third-party 911 calls.** Both feed only the EMS queue. In FirstLine runs a
   neighbor or relative gets there first in 99% of reached cases (EMS first in 6 of 888 over 5
   storms), so EMS capacity changes who EMS reaches but rarely the first arrival. It does move the
   calls-only baseline (13% to 15% within 60 min, 40% to 48% by morning), because there EMS is the
@@ -181,6 +181,6 @@ Read this honestly:
   a visit.
 
 Suggested writeup line: *"In a simulated Uri-like night over 5,000 synthetic Dallas residents
-(5 seeds), Porchlight got someone to the door of 62% of critical cases within an hour, against 13%
+(5 seeds), FirstLine got someone to the door of 62% of critical cases within an hour, against 13%
 for a calls-only baseline, and found 61% of the people who never asked for help within two hours,
 against 11%. Model and assumptions: sim/README.md."*

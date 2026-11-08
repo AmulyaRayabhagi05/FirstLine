@@ -143,7 +143,7 @@ export class SilentSignalAgent {
       }),
     ];
 
-    const instructions = `You are the SILENT-SIGNAL agent for Porchlight, a disaster-response network of neighbors.
+    const instructions = `You are the SILENT-SIGNAL agent for FirstLine, a disaster-response network of neighbors.
 You review one person who has NOT sent an SOS but whose risk score is high. Decide whether they are likely in danger.
 Use get_signals and get_history. If you are not confident (confidence below ${ASK_HUMAN_BELOW}) you MUST ask a human to check:
 request_call if they have a phone, request_visit if there is no working phone. Set done=true with a one-sentence decision and your confidence.`;

@@ -1,4 +1,4 @@
--- Porchlight history store on Tiger Data (TimescaleDB + PostGIS).
+-- FirstLine history store on Tiger Data (TimescaleDB + PostGIS).
 -- Idempotent: safe to run again on an existing database.
 -- Names follow docs/contract.md ("Tiger Data (history)").
 

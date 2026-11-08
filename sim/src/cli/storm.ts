@@ -4,7 +4,7 @@
 // dry       (default) count every reducer call and Tiger row, no network.
 // spacetime register people + nets, then play events through a SimStore. The store comes from
 //           SIM_STORE_MODULE: a module exporting `createStore(): Promise<SimStore>` (for example a
-//           thin wrapper around the worker's SpacetimeDB PorchlightStore adapter).
+//           thin wrapper around the worker's SpacetimeDB FirstLineStore adapter).
 // tiger     write readings / contact_events with pg from TIGER_DATABASE_URL (skips if unset).
 //
 // --speed 60 plays one storm hour per wall minute (1 = real time). Default: as fast as possible.

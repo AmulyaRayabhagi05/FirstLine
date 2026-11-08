@@ -1,4 +1,4 @@
-// SimStore: the slice of the worker's `PorchlightStore` (agents/src/store/types.ts on
+// SimStore: the slice of the worker's `FirstLineStore` (agents/src/store/types.ts on
 // feat/agent-worker) that the sim writes through. Signatures are copied from there, so the real
 // store, its InMemoryStore, or the SpacetimeDB adapter can be passed in directly.
 
@@ -52,7 +52,7 @@ export interface SimStore {
   reportSignal(personId: Id, kind: SignalKind, value: number): Promise<void>;
 }
 
-/** Optional extras used by the helper bot (also on PorchlightStore). */
+/** Optional extras used by the helper bot (also on FirstLineStore). */
 export interface HelperBotStore {
   listOpenSos(): Promise<{ id: Id }[]>;
   listAssignments(sosId: Id): Promise<{ id: Id; sosId: Id; helperId: Id; state: string }[]>;

@@ -1,6 +1,6 @@
 # Tiger Data (TimescaleDB + PostGIS) history store
 
-`schema.sql` creates everything Porchlight keeps as history. It is idempotent: run it as often
+`schema.sql` creates everything FirstLine keeps as history. It is idempotent: run it as often
 as you like.
 
 | Object | What it is |
@@ -26,10 +26,10 @@ No `psql`? `cd agents && npx tsx src/tiger/apply-schema.ts` does the same using 
 ## Local testing
 
 ```bash
-docker run -d --name porchlight-tsdb -e POSTGRES_PASSWORD=porchlight -p 55432:5432 timescale/timescaledb-ha:pg17
+docker run -d --name firstline-tsdb -e POSTGRES_PASSWORD=firstline -p 55432:5432 timescale/timescaledb-ha:pg17
 ```
 
-Then `TIGER_TEST_DATABASE_URL=postgres://postgres:porchlight@localhost:55432/postgres npm test` in
+Then `TIGER_TEST_DATABASE_URL=postgres://postgres:firstline@localhost:55432/postgres npm test` in
 `agents/`. The SQL tests skip cleanly when that variable is unset or the database is unreachable.
 
 ## Notes for tool authors

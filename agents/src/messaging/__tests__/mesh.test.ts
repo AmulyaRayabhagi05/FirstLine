@@ -52,9 +52,9 @@ describe("Meshtastic bridge", () => {
     expect(parseNodeNum("2130636288")).toBe(GATEWAY);
   });
 
-  it("PL SOS with coordinates -> press_sos(mesh) and a DM reply to the radio", async () => {
+  it("FL SOS with coordinates -> press_sos(mesh) and a DM reply to the radio", async () => {
     const { store, client, bridge } = setup();
-    const r = await bridge.handleMessage(TOPIC, JSON.stringify(text(101, "PL SOS 32.78,-96.80 2ppl insulin")));
+    const r = await bridge.handleMessage(TOPIC, JSON.stringify(text(101, "FL SOS 32.78,-96.80 2ppl insulin")));
     expect(r.status).toBe("handled");
     expect(store.sos).toEqual([
       { clientId: "mesh:!a1b2c3d4:101", personId: 40, message: "SOS (2 people): insulin", lat: 32.78, lng: -96.8, channel: "mesh" },
@@ -62,7 +62,7 @@ describe("Meshtastic bridge", () => {
     expect(client.published).toHaveLength(1);
     expect(client.published[0].topic).toBe("msh/US/2/json/mqtt/");
     expect(JSON.parse(client.published[0].message)).toEqual({
-      from: GATEWAY, to: RADIO, type: "sendtext", payload: "PL: help request received",
+      from: GATEWAY, to: RADIO, type: "sendtext", payload: "FL: help request received",
     });
   });
 
@@ -72,20 +72,20 @@ describe("Meshtastic bridge", () => {
       id: 200, from: RADIO, type: "position", payload: { latitude_i: 327812345, longitude_i: -968012345, altitude: 150 },
     }));
     expect(bridge.positionOf("!a1b2c3d4")).toEqual({ lat: 32.7812345, lng: -96.8012345 });
-    await bridge.handleMessage(TOPIC, JSON.stringify(text(201, "PL SOS water in the house")));
+    await bridge.handleMessage(TOPIC, JSON.stringify(text(201, "FL SOS water in the house")));
     expect(store.sos[0]).toMatchObject({ lat: 32.7812345, lng: -96.8012345, message: "SOS: water in the house" });
   });
 
-  it("PL OK -> check_in(mesh, safe)", async () => {
+  it("FL OK -> check_in(mesh, safe)", async () => {
     const { store, bridge } = setup();
-    await bridge.handleMessage(TOPIC, JSON.stringify(text(300, "PL OK")));
+    await bridge.handleMessage(TOPIC, JSON.stringify(text(300, "FL OK")));
     expect(store.checkIns).toEqual([{ clientId: "mesh:!a1b2c3d4:300", personId: 40, kind: "mesh", result: "safe", note: "" }]);
   });
 
   it("de-dupes the same packet heard by two gateways", async () => {
     const { store, client, bridge } = setup();
-    await bridge.handleMessage(TOPIC, JSON.stringify(text(400, "PL HELP need generator fuel")));
-    const again = await bridge.handleMessage("msh/US/2/json/LongFast/!0000beef", JSON.stringify(text(400, "PL HELP need generator fuel")));
+    await bridge.handleMessage(TOPIC, JSON.stringify(text(400, "FL HELP need generator fuel")));
+    const again = await bridge.handleMessage("msh/US/2/json/LongFast/!0000beef", JSON.stringify(text(400, "FL HELP need generator fuel")));
     expect(again.status).toBe("duplicate");
     expect(store.sos).toHaveLength(1);
     expect(client.published).toHaveLength(1);
@@ -95,16 +95,16 @@ describe("Meshtastic bridge", () => {
     const { store, client, bridge } = setup();
     expect((await bridge.handleMessage(TOPIC, JSON.stringify(text(500, "anyone up?", 0x1234)))).status).toBe("ignored");
     expect((await bridge.handleMessage(TOPIC, "not json")).status).toBe("ignored");
-    expect((await bridge.handleMessage(TOPIC, JSON.stringify(text(501, "PL: help request received", GATEWAY)))).status).toBe("ignored");
-    expect((await bridge.handleMessage("msh/US/2/json/mqtt/", JSON.stringify(text(502, "PL OK")))).status).toBe("ignored");
+    expect((await bridge.handleMessage(TOPIC, JSON.stringify(text(501, "FL: help request received", GATEWAY)))).status).toBe("ignored");
+    expect((await bridge.handleMessage("msh/US/2/json/mqtt/", JSON.stringify(text(502, "FL OK")))).status).toBe("ignored");
     expect(store.sos).toHaveLength(0);
     expect(store.checkIns).toHaveLength(0);
     expect(client.published).toHaveLength(0);
   });
 
-  it("unknown node with a PL SOS still gets through as person 0", async () => {
+  it("unknown node with a FL SOS still gets through as person 0", async () => {
     const { store, bridge } = setup();
-    await bridge.handleMessage(TOPIC, JSON.stringify(text(600, "PL SOS 32.70,-96.70 roof", 0x5555)));
+    await bridge.handleMessage(TOPIC, JSON.stringify(text(600, "FL SOS 32.70,-96.70 roof", 0x5555)));
     expect(store.sos[0]).toMatchObject({ personId: 0, lat: 32.7, channel: "mesh" });
   });
 
@@ -117,7 +117,7 @@ describe("Meshtastic bridge", () => {
   it("works end to end through the fake client's message event", async () => {
     const { store, client, bridge } = setup();
     bridge.start();
-    client.emit(TOPIC, text(800, "PL OK"));
+    client.emit(TOPIC, text(800, "FL OK"));
     await new Promise((r) => setTimeout(r, 10));
     expect(store.checkIns).toHaveLength(1);
   });

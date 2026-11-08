@@ -1,4 +1,4 @@
-// Pushes the generated world and the storm through a SimStore (the worker's PorchlightStore,
+// Pushes the generated world and the storm through a SimStore (the worker's FirstLineStore,
 // backed by SpacetimeDB at integration). Sim person ids are remapped to whatever ids the store
 // returns, so loading into a non-empty database is safe.
 import { helperDecision, playStorm, type PlayOptions, type Storm, type StormEvent } from "../storm.js";

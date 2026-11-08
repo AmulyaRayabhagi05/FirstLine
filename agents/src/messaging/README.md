@@ -1,9 +1,9 @@
 # messaging
 
-How messages reach Porchlight when the app can't: SMS to a Twilio number, automated check-in
+How messages reach FirstLine when the app can't: SMS to a Twilio number, automated check-in
 phone calls, and Meshtastic LoRa radios relayed through an MQTT broker. Every inbound message
 ends as a contract reducer call (`press_sos`, `check_in`, `log_agent_step`) through
-`ChannelStore` (`store.ts`), which the coordinator maps onto `PorchlightStore` at merge.
+`ChannelStore` (`store.ts`), which the coordinator maps onto `FirstLineStore` at merge.
 
 | File | What it does |
 |---|---|
@@ -19,17 +19,17 @@ ends as a contract reducer call (`press_sos`, `check_in`, `log_agent_step`) thro
 ## Text format (SMS and mesh)
 
 ```
-PL SOS 32.78,-96.80 2ppl insulin    SOS with location, head count and note
-PL SOS water rising                  SOS; location from the sender's last known position
-PL OK                                check-in: safe
-PL HELP need a ride to dialysis      SOS with free-text need
-PL OK #14                            #<personId> names the person (shared phones, radios)
+FL SOS 32.78,-96.80 2ppl insulin    SOS with location, head count and note
+FL SOS water rising                  SOS; location from the sender's last known position
+FL OK                                check-in: safe
+FL HELP need a ride to dialysis      SOS with free-text need
+FL OK #14                            #<personId> names the person (shared phones, radios)
 ```
 
 Case and spacing don't matter. Spanish verbs work too (`SOCORRO`, `AUXILIO`, `AYUDA`, `BIEN`).
-Text without the `PL` prefix from a registered phone (or a mapped radio) is treated as an SOS
+Text without the `FL` prefix from a registered phone (or a mapped radio) is treated as an SOS
 and its text goes to triage as-is, in any language. Free text from an unknown number gets a
-reply explaining the format and creates nothing. A `PL SOS` from an unknown sender still
+reply explaining the format and creates nothing. A `FL SOS` from an unknown sender still
 creates an SOS with `person_id = 0` (unregistered) so it is never dropped.
 
 Idempotency: `client_id` is `sms:<MessageSid>`, `voice:<CallSid>` or
@@ -98,12 +98,12 @@ The bridge subscribes to `<root>/2/json/+/+`, reads `type: "text"` (`payload.tex
 `type: "position"` (`payload.latitude_i/longitude_i`, degrees x 1e7) packets, de-dupes by
 `from` + `id`, and replies with a short DM. Downlinks go to `<root>/2/json/mqtt/` as
 `{ "from": <gateway>, "to": <node>, "type": "sendtext", "payload": "check on #14" }`.
-Chatter from unknown radios that doesn't start with `PL` is ignored (no reply loops).
+Chatter from unknown radios that doesn't start with `FL` is ignored (no reply loops).
 
 Test without radios by publishing a fake uplink:
 
 ```bash
-mosquitto_pub -t msh/US/2/json/LongFast/!7efeee00 -m '{"id":1,"from":2712847316,"type":"text","payload":{"text":"PL SOS 32.78,-96.80 2ppl insulin"}}'
+mosquitto_pub -t msh/US/2/json/LongFast/!7efeee00 -m '{"id":1,"from":2712847316,"type":"text","payload":{"text":"FL SOS 32.78,-96.80 2ppl insulin"}}'
 ```
 
 ## Agent tools
@@ -114,7 +114,7 @@ mosquitto_pub -t msh/US/2/json/LongFast/!7efeee00 -m '{"id":1,"from":2712847316,
 ## Merge notes
 
 - `ChannelStore` methods match the contract reducers; `findPersonByPhone` is a read the worker's
-  `PorchlightStore` needs to add (or the adapter can scan `person` by `phone`).
+  `FirstLineStore` needs to add (or the adapter can scan `person` by `phone`).
 - `person_id = 0` marks an SOS from an unregistered sender.
 - `.env.example` (outside this folder) should gain `PUBLIC_BASE_URL`, `MESSAGING_PORT` and the
   `MESH_*` vars above.

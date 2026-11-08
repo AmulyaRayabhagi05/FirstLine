@@ -1,4 +1,4 @@
-// PorchlightStore: the worker's view of the SpacetimeDB module (see docs/contract.md).
+// FirstLineStore: the worker's view of the SpacetimeDB module (see docs/contract.md).
 // Every write goes through a method named after a reducer (camelCase). Reads mirror the
 // tables the worker subscribes to. Other branches (messaging, sim, feeds) import these
 // names, so treat them as part of the contract: rename only together with docs/contract.md.
@@ -218,7 +218,7 @@ export interface LogAgentStepArgs {
 export type Unsubscribe = () => void;
 export type Listener<T> = (row: T) => void | Promise<void>;
 
-export interface PorchlightStore {
+export interface FirstLineStore {
   // ---- phone / channel reducers (messaging, sim, app) ----
   registerPerson(args: RegisterPersonArgs): Promise<{ personId: Id; householdId: Id }>;
   setSafetyNet(ownerId: Id, members: SafetyNetMemberInput[]): Promise<void>;

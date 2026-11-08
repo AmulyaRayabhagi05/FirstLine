@@ -217,7 +217,7 @@ export function generateStorm(world: World, seed = world.seed): Storm {
     }
   }
 
-  // Check-ins: Porchlight pings everyone with the app at 9 pm, 12 am and 4 am.
+  // Check-ins: FirstLine pings everyone with the app at 9 pm, 12 am and 4 am.
   for (const ping of [60, 240, 480]) {
     for (const p of people) {
       if (!p.hasSmartphone || p.age < 14 || p.demoRole === "mr_lee") continue;

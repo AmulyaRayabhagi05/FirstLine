@@ -1,4 +1,4 @@
-// Compares Porchlight with a calls-only baseline over the same world and storm.
+// Compares FirstLine with a calls-only baseline over the same world and storm.
 // Minute-stepped discrete simulation. The model and every assumption are documented in
 // sim/README.md ("Measurement model"); defaults lean toward the baseline where unsure.
 import { gridDisk } from "h3-js";
@@ -25,7 +25,7 @@ export interface MeasureParams {
   informalCheckMeanMin: number;
   /** Minimum minutes between automated calls to the same person. */
   recallMin: number;
-  /** Porchlight triage latency and how often it reads a real emergency as non-urgent (P1 -> P3). */
+  /** FirstLine triage latency and how often it reads a real emergency as non-urgent (P1 -> P3). */
   triageMin: number;
   triageMissP: number;
   /** Assignment offer timeout (contract: 10 minutes). */
@@ -113,7 +113,7 @@ interface Ctx {
   /** First SOS (or in-app needs_help) about each person. */
   firstAsk: Map<number, number>;
   thirdPartyCalls: { personId: number; t: number }[];
-  /** Spontaneous visits by family/neighbors that happen with or without Porchlight. */
+  /** Spontaneous visits by family/neighbors that happen with or without FirstLine. */
   informal: { personId: number; t: number }[];
   end: number;
 }
@@ -231,7 +231,7 @@ export function runCallsOnly(world: World, storm: Storm, p: MeasureParams = DEFA
 }
 
 // ---------------------------------------------------------------------------------------------
-// Porchlight: triaged SOS -> safety-net dispatch (ring 1, 2, then nearby), escalation to EMS,
+// FirstLine: triaged SOS -> safety-net dispatch (ring 1, 2, then nearby), escalation to EMS,
 // plus the silent-signal sweep (priority score -> automated call -> neighbor check).
 
 interface Request {
@@ -262,7 +262,7 @@ export function priorityScore(person: Person, obs: { powerOut: boolean; lowTemp:
   return v * e * g;
 }
 
-export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEFAULT_PARAMS): StrategyResult {
+export function runFirstLine(world: World, storm: Storm, p: MeasureParams = DEFAULT_PARAMS): StrategyResult {
   const ctx = buildCtx(world, storm, p);
   const people = world.people;
   const byId = (id: number) => people[id - 1];
@@ -469,7 +469,7 @@ export function runPorchlight(world: World, storm: Storm, p: MeasureParams = DEF
     }
     q.step(t);
   }
-  return finish("porchlight", ctx, reached, stats);
+  return finish("firstline", ctx, reached, stats);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -478,10 +478,10 @@ export interface Comparison {
   seed: number;
   params: MeasureParams;
   baseline: StrategyResult;
-  porchlight: StrategyResult;
+  firstline: StrategyResult;
 }
 
 export function compare(world: World, storm: Storm, params: Partial<MeasureParams> = {}): Comparison {
   const p = { ...DEFAULT_PARAMS, ...params };
-  return { seed: storm.seed, params: p, baseline: runCallsOnly(world, storm, p), porchlight: runPorchlight(world, storm, p) };
+  return { seed: storm.seed, params: p, baseline: runCallsOnly(world, storm, p), firstline: runFirstLine(world, storm, p) };
 }

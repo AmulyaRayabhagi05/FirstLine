@@ -236,7 +236,7 @@ export const cellTrend: TigerTool<
 // ---------------------------------------------------------------------------
 
 const personTimelineInput = z.object({
-  person_id: z.number().int().nonnegative().describe('Porchlight person id'),
+  person_id: z.number().int().nonnegative().describe('FirstLine person id'),
   hours: z.number().min(1).max(168).default(24).describe('Look-back window in hours'),
 });
 

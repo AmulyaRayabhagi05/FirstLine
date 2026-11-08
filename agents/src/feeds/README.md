@@ -29,6 +29,6 @@ Notes:
   the DPD "Beats3" ArcGIS layer (`data/dallas_beats.json`, 235 beats). Downtown 8xx beats are not
   in that layer and map to a Central Business District centroid.
 - Static feeds (emPOWER, OSM, Census) land once per UTC day; FEMA shelters once per hour.
-- Caches go to `FEEDS_CACHE_DIR` (default: OS temp dir `porchlight-feeds-cache`).
+- Caches go to `FEEDS_CACHE_DIR` (default: OS temp dir `firstline-feeds-cache`).
 - Fixtures in `agents/test/fixtures/` are real responses recorded 2026-11-08, except
   `census_s0101.json`, which is hand-written in the API's format (no key was available).
