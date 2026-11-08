@@ -8,7 +8,7 @@
 
 import { DbConnection } from '../module_bindings';
 import { DALLAS_NEIGHBORHOODS, homes, project, type Status } from '../sim/world';
-import { useMap, type AgentLine, type AssignmentInfo, type IncidentReport, type KeyPassInfo, type Resident, type TriageInfo } from '../state/store';
+import { useMap, type ActionKind, type AgentLine, type AssignmentInfo, type IncidentReport, type KeyPassInfo, type Resident, type TriageInfo } from '../state/store';
 import { toMapStatus } from './spacetime';
 
 export const SPACETIME_HOST: string = (import.meta.env.VITE_SPACETIME_HOST as string) || 'http://127.0.0.1:3000';
@@ -100,6 +100,7 @@ function snapshot(conn: DbConnection) {
   const nets = [...db.opsSafetyNet.iter()];
   const triages = [...db.opsTriage.iter()];
   const keyPasses = [...db.opsKeyPass.iter()];
+  const actionRows = [...db.opsActionRequest.iter()];
   const now = Date.now();
   const cells = new Map([...db.hexCell.iter()].map((c) => [c.h3Cell, c]));
 
@@ -293,6 +294,18 @@ function snapshot(conn: DbConnection) {
       triage: householdTriage(members.map((m) => latestTriage.get(key(m.id)))),
       assignment: householdAssignment(ids),
       keyPass: householdKeyPass(key(h.id)),
+      escalated: sosAll.some((s) => ids.has(key(s.personId)) && s.state === 'escalated'),
+      actions: actionRows
+        .filter((x) => ids.has(key(x.personId)))
+        .sort((x, y) => ms(y.createdAt)! - ms(x.createdAt)!)
+        .slice(0, 4)
+        .map((x) => ({ id: key(x.id), action: x.action as ActionKind, state: x.state, result: x.result, at: ms(x.createdAt)! })),
+      claimTimeline: (() => {
+        const t = steps
+          .filter((s) => s.content.startsWith('Claim timeline:') && ids.has(s.subject.split(':')[1] ?? ''))
+          .sort((x, y) => ms(y.createdAt)! - ms(x.createdAt)!)[0];
+        return t ? { at: ms(t.createdAt)!, text: t.content } : null;
+      })(),
     };
   }
 
@@ -333,6 +346,14 @@ const needsHelp = (s: Status) => s === 'p1' || s === 'p2' || s === 'unknown';
 export async function markHouseholdSafe(r: Resident) {
   if (!liveConn) throw new Error('Not connected');
   for (const m of r.members) if (needsHelp(m.status) || m.status === 'enroute') await liveConn.reducers.markSafe({ personId: m.id, note: 'confirmed safe from the map' });
+}
+
+/** Ask the agents to act for a household (the worker runs it and writes the result back). */
+export async function requestAction(r: Resident, action: ActionKind, note = '') {
+  if (!liveConn) throw new Error('Not connected');
+  const target = r.members.find((m) => needsHelp(m.status) || m.status === 'enroute') ?? r.members[0];
+  if (!target) throw new Error('No one registered in this household');
+  await liveConn.reducers.requestAction({ personId: target.id, action, note });
 }
 
 /** Demo: everyone in the flood zone reports needing help, as phones in a real flood would. */
@@ -435,7 +456,7 @@ export function startLive(token: string | undefined = readToken() ?? PINNED_TOKE
         .subscriptionBuilder()
         .onApplied(() => {
           const db = conn.db;
-          for (const t of [db.dashPerson, db.opsHousehold, db.opsSosEvent, db.opsAssignment, db.opsCheckIn, db.opsSignal, db.opsAgentStep, db.opsIncidentReport, db.opsSafetyNet, db.opsTriage, db.opsKeyPass, db.hexCell] as const) {
+          for (const t of [db.dashPerson, db.opsHousehold, db.opsSosEvent, db.opsAssignment, db.opsCheckIn, db.opsSignal, db.opsAgentStep, db.opsIncidentReport, db.opsSafetyNet, db.opsTriage, db.opsKeyPass, db.opsActionRequest, db.hexCell] as const) {
             const table = t as unknown as { onInsert(cb: () => void): void; onDelete(cb: () => void): void; onUpdate?: (cb: () => void) => void };
             table.onInsert(refresh);
             table.onDelete(refresh);
@@ -461,6 +482,7 @@ export function startLive(token: string | undefined = readToken() ?? PINNED_TOKE
           'SELECT * FROM ops_safety_net',
           'SELECT * FROM ops_triage',
           'SELECT * FROM ops_key_pass',
+          'SELECT * FROM ops_action_request',
           'SELECT * FROM hex_cell',
         ]);
     })

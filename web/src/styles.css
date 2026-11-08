@@ -235,3 +235,19 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
 .card .log li { overflow-wrap: anywhere; }
 .log li.k-thought, .log li.k-tool_result { color: var(--dim); }
 .log li.k-tool_call { color: var(--enroute); }
+
+/* Nemotron's pick and the claim timeline on the household card */
+.card .btn.picked { box-shadow: 0 0 0 2px var(--warm, #ffb547) inset; }
+.card .btn.picked small { color: var(--warm, #ffb547); }
+.card .triage.pick { border-left: 2px solid var(--warm, #ffb547); padding-left: 8px; }
+.card pre.timeline {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 180px;
+  overflow: auto;
+}
+.card .btn:disabled { opacity: 0.55; cursor: not-allowed; }

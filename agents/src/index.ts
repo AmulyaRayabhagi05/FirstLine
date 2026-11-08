@@ -2,12 +2,15 @@
 //   new SOS            -> triage -> dispatch
 //   offer timed out    -> dispatch (replan)
 //   offer declined     -> dispatch (replan)
+//   needs_help check-in -> opens an SOS for that person (then triage -> dispatch as above)
+//   dashboard request  -> respond / call / escalate / send neighbor / claim timeline (agents/actions.ts)
 //   every N seconds    -> silent-signal sweep, reports sweep
 //
 // Run with `npm start`. With SPACETIME_DB_NAME set it runs on SpacetimeDB (store/spacetime.ts),
 // otherwise on the InMemoryStore. SMS/voice, mesh, Tiger and live feeds start when their env is set.
 
 import { pathToFileURL } from "node:url";
+import { ACTION_LABEL, activeSos, ensureSos, sosForCheckIn, sosSummary, timelineText, writeClaimTimeline, type ActionResult } from "./agents/actions.js";
 import { runDispatch, type DispatchOutcome, type DispatchTrigger } from "./agents/dispatch.js";
 import type { AgentDeps } from "./agents/loop.js";
 import { runReportsSweep } from "./agents/reports.js";
@@ -19,7 +22,7 @@ import { channelStoreFor, startChannels } from "./runtime/channels.js";
 import { buildServices } from "./runtime/services.js";
 import { InMemoryStore } from "./store/memory.js";
 import { SpacetimeStore, spacetimeConfigFromEnv } from "./store/spacetime.js";
-import type { FirstLineStore, Id, Unsubscribe } from "./store/types.js";
+import type { ActionRequest, CheckIn, FirstLineStore, Id, Unsubscribe } from "./store/types.js";
 
 export * from "./store/types.js";
 export { InMemoryStore } from "./store/memory.js";
@@ -30,7 +33,26 @@ export * from "./llm/index.js";
 export interface WorkerOptions {
   silentSignalEveryMs?: number;
   reportsEveryMs?: number;
+  /** Agent runs at once across SOS events (the flood demo opens dozens). Default 4. */
+  concurrency?: number;
   onError?: (where: string, err: unknown) => void;
+}
+
+/** A tiny counting semaphore so a burst of SOS events queues instead of flooding the model. */
+class Gate {
+  private active = 0;
+  private queue: (() => void)[] = [];
+  constructor(private readonly max: number) {}
+  async run<T>(work: () => Promise<T>): Promise<T> {
+    if (this.active >= this.max) await new Promise<void>((r) => this.queue.push(r));
+    this.active++;
+    try {
+      return await work();
+    } finally {
+      this.active--;
+      this.queue.shift()?.();
+    }
+  }
 }
 
 export class AgentWorker {
@@ -42,12 +64,15 @@ export class AgentWorker {
   private pending = new Set<Promise<unknown>>();
   /** Serialize work per SOS so a timeout and a decline never dispatch concurrently. */
   private sosChains = new Map<Id, Promise<unknown>>();
+  private readonly gate: Gate;
+  readonly actionsRun: (ActionRequest & ActionResult)[] = [];
 
   constructor(
     readonly deps: AgentDeps,
     private readonly opts: WorkerOptions = {},
   ) {
     this.silentSignal = new SilentSignalAgent(deps);
+    this.gate = new Gate(Math.max(1, opts.concurrency ?? 4));
   }
 
   private onError(where: string, err: unknown) {
@@ -66,18 +91,103 @@ export class AgentWorker {
 
   private onSos<T>(sosId: Id, work: () => Promise<T>): Promise<T | undefined> {
     const prev = this.sosChains.get(sosId) ?? Promise.resolve();
-    const next = prev.then(work, work);
+    const gated = () => this.gate.run(work);
+    const next = prev.then(gated, gated);
     this.sosChains.set(sosId, next.catch(() => undefined));
     return this.track(next);
   }
 
-  async handleSos(sosId: Id): Promise<void> {
+  /** Triage, then dispatch. Idempotent: skips triage that exists and dispatch while an offer is live. */
+  async handleSos(sosId: Id, opts: { retriage?: boolean; redispatch?: boolean } = {}): Promise<void> {
     await this.onSos(sosId, async () => {
-      const sos = await this.deps.store.getSos(sosId);
-      if (!sos) return;
-      this.triaged.push(await runTriage(this.deps, sos));
-      this.dispatched.push(await runDispatch(this.deps, sosId, { kind: "new_sos" }));
+      const { store } = this.deps;
+      const sos = await store.getSos(sosId);
+      if (!sos || sos.state === "resolved") return;
+      if (opts.retriage || !(await store.getTriageForSos(sosId))) this.triaged.push(await runTriage(this.deps, sos));
+      const live = (await store.listAssignments(sosId)).some((a) => a.state === "offered" || a.state === "accepted");
+      if (!live || opts.redispatch) this.dispatched.push(await runDispatch(this.deps, sosId, { kind: "new_sos" }));
     });
+  }
+
+  /** A needs-help check-in opens an SOS; triage and dispatch then run on it as for a pressed SOS. */
+  async handleCheckIn(c: CheckIn): Promise<void> {
+    const want = sosForCheckIn(c);
+    if (!want) return;
+    await this.track(
+      (async () => {
+        const person = await this.deps.store.getPerson(c.personId);
+        if (!person || (await activeSos(this.deps, person.id))) return;
+        await ensureSos(this.deps, person, want.clientId, want.message, want.channel);
+        // The onSos listener picks the new SOS up.
+      })(),
+    );
+  }
+
+  /** A dashboard button: run it with the agents and write the outcome back to action_request. */
+  async handleAction(req: ActionRequest): Promise<ActionResult | undefined> {
+    const { store, services } = this.deps;
+    const finish = async (r: ActionResult) => {
+      this.actionsRun.push({ ...req, ...r });
+      await store.finishAction(req.id, r.state, r.result).catch((err) => this.onError("finishAction", err));
+      await store
+        .logAgentStep({
+          agent: req.action === "claim_timeline" ? "reports" : "dispatch",
+          subject: `person:${req.personId}`,
+          kind: "decision",
+          content: r.result.slice(0, 1900),
+        })
+        .catch(() => undefined);
+      return r;
+    };
+    return this.track(
+      (async () => {
+        const person = await store.getPerson(req.personId);
+        if (!person) return finish({ state: "failed", result: `Person ${req.personId} not found` });
+        const note = req.note ? ` Staff note: ${req.note}` : "";
+        const open = (msg: string) => ensureSos(this.deps, person, `action:${req.id}`, msg, "app");
+        try {
+          switch (req.action) {
+            case "respond": {
+              const { sos, created } = await open(`Staff asked Nemotron to respond for ${person.name}.${note}`);
+              await this.handleSos(sos.id, { retriage: !created });
+              return finish({ state: "done", result: `Nemotron responded for ${person.name}: ${await sosSummary(this.deps, sos.id)}` });
+            }
+            case "send_neighbor": {
+              const { sos } = await open(`Staff asked for a neighbor to check on ${person.name}.${note}`);
+              await this.handleSos(sos.id, { redispatch: true });
+              return finish({ state: "done", result: `Neighbor dispatch for ${person.name}: ${await sosSummary(this.deps, sos.id)}` });
+            }
+            case "escalate": {
+              const { sos } = await open(`Staff escalated ${person.name} to professional responders.${note}`);
+              await this.onSos(sos.id, async () => {
+                const s = await store.getSos(sos.id);
+                if (!s) return;
+                if (!(await store.getTriageForSos(sos.id))) this.triaged.push(await runTriage(this.deps, s));
+                await store.escalate(sos.id, `Staff escalation from the dashboard.${note}`.slice(0, 1900));
+              });
+              return finish({ state: "done", result: `Escalated ${person.name} to professional responders. ${await sosSummary(this.deps, sos.id)}` });
+            }
+            case "call": {
+              if (!person.phone) return finish({ state: "failed", result: `${person.name} has no phone on file` });
+              const r = await services.comms.requestCall({
+                personId: person.id,
+                phone: person.phone,
+                language: person.language,
+                reason: `Staff asked for a check-in call.${note}`,
+              });
+              return finish({ state: "done", result: `Check-in call placed to ${person.name} (${r.id}). The answer arrives as a check-in or SOS.` });
+            }
+            case "claim_timeline": {
+              const t = await this.gate.run(() => writeClaimTimeline(this.deps, person));
+              return finish({ state: "done", result: timelineText(t) });
+            }
+          }
+        } catch (err) {
+          const why = err instanceof Error ? err.message : String(err);
+          return finish({ state: "failed", result: `${ACTION_LABEL[req.action]} failed: ${why}`.slice(0, 500) });
+        }
+      })(),
+    );
   }
 
   async handleReplan(sosId: Id, trigger: DispatchTrigger): Promise<void> {
@@ -92,6 +202,8 @@ export class AgentWorker {
       store.onSos((sos) => void this.handleSos(sos.id)),
       store.onAssignmentTimeout((a) => void this.handleReplan(a.sosId, { kind: "timeout", assignment: a })),
       store.onAssignmentDeclined((a) => void this.handleReplan(a.sosId, { kind: "declined", assignment: a })),
+      store.onCheckIn((c) => void this.handleCheckIn(c)),
+      store.onActionRequest((r) => void this.handleAction(r)),
     );
     const ss = this.opts.silentSignalEveryMs ?? 60_000;
     const rp = this.opts.reportsEveryMs ?? 120_000;
@@ -117,6 +229,10 @@ export class AgentWorker {
 export async function catchUp(worker: AgentWorker): Promise<number> {
   const { store } = worker.deps;
   let n = 0;
+  for (const req of await store.listPendingActions()) {
+    void worker.handleAction(req);
+    n++;
+  }
   for (const sos of await store.listOpenSos()) {
     const triage = await store.getTriageForSos(sos.id);
     const live = (await store.listAssignments(sos.id)).some((a) => a.state === "offered" || a.state === "accepted");
@@ -170,12 +286,15 @@ export async function main(env: NodeJS.ProcessEnv = process.env) {
     {
       silentSignalEveryMs: Number(env.SILENT_SIGNAL_EVERY_MS ?? 60_000),
       reportsEveryMs: Number(env.REPORTS_EVERY_MS ?? 120_000),
+      concurrency: Number(env.AGENT_CONCURRENCY ?? 4),
     },
   ).start();
   const caught = await catchUp(worker);
   if (caught) console.log(`[worker] catching up on ${caught} open SOS`);
 
-  const channels = startChannels(channelStore, rt.twilio, env);
+  const { FirstLineVoiceAssistant, operatorNumbersFromEnv } = await import("./runtime/voiceAssistant.js");
+  const assistant = new FirstLineVoiceAssistant(worker.deps, { operatorNumbers: operatorNumbersFromEnv(env) });
+  const channels = startChannels(channelStore, rt.twilio, env, assistant);
 
   // Live feeds: weather alerts -> set_cell_alert for cells with people; road hazards -> reports.
   let poller: { stop(): void } | undefined;

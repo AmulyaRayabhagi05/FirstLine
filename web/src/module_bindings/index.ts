@@ -41,6 +41,7 @@ import AssignHelperReducer from "./assign_helper_reducer";
 import CheckInReducerReducer from "./check_in_reducer_reducer";
 import DeclineAssignmentReducer from "./decline_assignment_reducer";
 import EscalateReducer from "./escalate_reducer";
+import FinishActionReducer from "./finish_action_reducer";
 import GrantKeyPassReducer from "./grant_key_pass_reducer";
 import LogAgentStepReducer from "./log_agent_step_reducer";
 import LogUnlockReducer from "./log_unlock_reducer";
@@ -51,6 +52,7 @@ import RegisterPersonReducer from "./register_person_reducer";
 import RemoveStaffReducer from "./remove_staff_reducer";
 import RemoveViewerReducer from "./remove_viewer_reducer";
 import ReportSignalReducer from "./report_signal_reducer";
+import RequestActionReducer from "./request_action_reducer";
 import RevokeKeyPassReducer from "./revoke_key_pass_reducer";
 import SaveIncidentReportReducer from "./save_incident_report_reducer";
 import SaveTriageReducer from "./save_triage_reducer";
@@ -73,6 +75,7 @@ import MyKeyPassRow from "./my_key_pass_table";
 import MyPersonRow from "./my_person_table";
 import MySafetyNetRow from "./my_safety_net_table";
 import MySosEventRow from "./my_sos_event_table";
+import OpsActionRequestRow from "./ops_action_request_table";
 import OpsAgentStepRow from "./ops_agent_step_table";
 import OpsAssignmentRow from "./ops_assignment_table";
 import OpsAuditLogRow from "./ops_audit_log_table";
@@ -150,6 +153,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MySosEventRow),
+  opsActionRequest: __table({
+    name: 'ops_action_request',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsActionRequestRow),
   opsAgentStep: __table({
     name: 'ops_agent_step',
     indexes: [
@@ -245,6 +255,7 @@ const reducersSchema = __reducers(
   __reducerSchema("check_in", CheckInReducerReducer),
   __reducerSchema("decline_assignment", DeclineAssignmentReducer),
   __reducerSchema("escalate", EscalateReducer),
+  __reducerSchema("finish_action", FinishActionReducer),
   __reducerSchema("grant_key_pass", GrantKeyPassReducer),
   __reducerSchema("log_agent_step", LogAgentStepReducer),
   __reducerSchema("log_unlock", LogUnlockReducer),
@@ -255,6 +266,7 @@ const reducersSchema = __reducers(
   __reducerSchema("remove_staff", RemoveStaffReducer),
   __reducerSchema("remove_viewer", RemoveViewerReducer),
   __reducerSchema("report_signal", ReportSignalReducer),
+  __reducerSchema("request_action", RequestActionReducer),
   __reducerSchema("revoke_key_pass", RevokeKeyPassReducer),
   __reducerSchema("save_incident_report", SaveIncidentReportReducer),
   __reducerSchema("save_triage", SaveTriageReducer),
@@ -289,6 +301,8 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
     readonly "my_safety_net": Omit<typeof tablesSchema.schemaType.tables["mySafetyNet"], "accessorName"> & { readonly accessorName: "my_safety_net" };
     /** @deprecated Use `mySosEvent` instead. This alias will be removed in the next major version. */
     readonly "my_sos_event": Omit<typeof tablesSchema.schemaType.tables["mySosEvent"], "accessorName"> & { readonly accessorName: "my_sos_event" };
+    /** @deprecated Use `opsActionRequest` instead. This alias will be removed in the next major version. */
+    readonly "ops_action_request": Omit<typeof tablesSchema.schemaType.tables["opsActionRequest"], "accessorName"> & { readonly accessorName: "ops_action_request" };
     /** @deprecated Use `opsAgentStep` instead. This alias will be removed in the next major version. */
     readonly "ops_agent_step": Omit<typeof tablesSchema.schemaType.tables["opsAgentStep"], "accessorName"> & { readonly accessorName: "ops_agent_step" };
     /** @deprecated Use `opsAssignment` instead. This alias will be removed in the next major version. */
@@ -339,6 +353,7 @@ const tableAccessorAliases = {
   "my_person": "myPerson",
   "my_safety_net": "mySafetyNet",
   "my_sos_event": "mySosEvent",
+  "ops_action_request": "opsActionRequest",
   "ops_agent_step": "opsAgentStep",
   "ops_assignment": "opsAssignment",
   "ops_audit_log": "opsAuditLog",
@@ -387,6 +402,8 @@ export type DbView = __DbViewBase & {
   readonly "my_safety_net": __DbViewBase["mySafetyNet"];
   /** @deprecated Use `mySosEvent` instead. This alias will be removed in the next major version. */
   readonly "my_sos_event": __DbViewBase["mySosEvent"];
+  /** @deprecated Use `opsActionRequest` instead. This alias will be removed in the next major version. */
+  readonly "ops_action_request": __DbViewBase["opsActionRequest"];
   /** @deprecated Use `opsAgentStep` instead. This alias will be removed in the next major version. */
   readonly "ops_agent_step": __DbViewBase["opsAgentStep"];
   /** @deprecated Use `opsAssignment` instead. This alias will be removed in the next major version. */
@@ -431,6 +448,8 @@ export type Tables = __TablesBase & {
   readonly "my_safety_net": __TablesBase["mySafetyNet"];
   /** @deprecated Use `mySosEvent` instead. This alias will be removed in the next major version. */
   readonly "my_sos_event": __TablesBase["mySosEvent"];
+  /** @deprecated Use `opsActionRequest` instead. This alias will be removed in the next major version. */
+  readonly "ops_action_request": __TablesBase["opsActionRequest"];
   /** @deprecated Use `opsAgentStep` instead. This alias will be removed in the next major version. */
   readonly "ops_agent_step": __TablesBase["opsAgentStep"];
   /** @deprecated Use `opsAssignment` instead. This alias will be removed in the next major version. */

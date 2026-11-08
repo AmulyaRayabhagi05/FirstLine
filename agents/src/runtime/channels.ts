@@ -6,6 +6,7 @@ import { createMessagingServer } from "../messaging/server.js";
 import { startMeshBridgeFromEnv, type MeshtasticBridge } from "../messaging/meshtastic-bridge.js";
 import { normalizePhone, type ChannelPerson, type ChannelStore } from "../messaging/store.js";
 import type { TwilioConfig, TwilioLike } from "../messaging/twilio.js";
+import type { VoiceAssistant } from "../messaging/inbound-voice.js";
 import type { FirstLineStore, Person } from "../store/types.js";
 
 export const channelPersonOf = (p: Person): ChannelPerson => ({
@@ -58,6 +59,7 @@ export function startChannels(
   channelStore: WorkerChannelStore,
   twilio: { client: TwilioLike; cfg: TwilioConfig } | undefined,
   env: NodeJS.ProcessEnv = process.env,
+  assistant?: VoiceAssistant,
 ): StartedChannels {
   const describe: string[] = [];
   let http: Server | undefined;
@@ -65,8 +67,8 @@ export function startChannels(
 
   if (twilio && flagOn(env.CHANNEL_SMS)) {
     const port = Number(env.MESSAGING_PORT ?? 8787);
-    http = createMessagingServer({ store: channelStore, cfg: twilio.cfg, client: twilio.client, getPerson: channelStore.getPerson }).listen(port);
-    describe.push(`sms/voice: webhooks on :${port} (signature check ${twilio.cfg.authToken ? "on" : "OFF"})`);
+    http = createMessagingServer({ store: channelStore, cfg: twilio.cfg, client: twilio.client, getPerson: channelStore.getPerson, assistant }).listen(port);
+    describe.push(`sms/voice: webhooks on :${port} (signature check ${twilio.cfg.authToken ? "on" : "OFF"}; inbound calls ${assistant ? "answered by Nemotron" : "off"})`);
   } else {
     describe.push(`sms/voice: off (${twilio ? "CHANNEL_SMS=0" : "TWILIO_* not set"})`);
   }

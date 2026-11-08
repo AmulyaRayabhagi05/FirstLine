@@ -47,6 +47,22 @@ export interface Resident {
   assignment: AssignmentInfo | null;
   /** Latest key pass to this household. */
   keyPass: KeyPassInfo | null;
+  /** An SOS in the household is escalated to professional responders. */
+  escalated: boolean;
+  /** Dashboard requests the agents ran for this household, newest first. */
+  actions: ActionInfo[];
+  /** The latest claim timeline Nemotron wrote for this household. */
+  claimTimeline: { at: number; text: string } | null;
+}
+
+export type ActionKind = 'respond' | 'call' | 'escalate' | 'send_neighbor' | 'claim_timeline';
+
+export interface ActionInfo {
+  id: string;
+  action: ActionKind;
+  state: string; // pending | done | failed
+  result: string;
+  at: number;
 }
 
 export interface TriageInfo {

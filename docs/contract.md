@@ -37,6 +37,7 @@ Every table with a location has `h3_cell` so clients can subscribe to their area
 | `incident_report` | `id`, `h3_cell` (res 8), `summary`, `blocked_roads` (string), `p1`, `p2`, `unknown` (u32), `created_at` |
 | `agent_step` | `id`, `agent` (`triage` / `dispatch` / `silent_signal` / `reports`), `subject` (e.g. `sos:12`, `person:40`, `cell:88...`), `kind` (`thought` / `tool_call` / `tool_result` / `decision`), `content` (string, short), `confidence` (f32, optional), `created_at`. The map's reasoning panel subscribes to this. |
 | `audit_log` | `id`, `actor` (identity string or `agent:<name>`), `action`, `target`, `created_at` |
+| `action_request` | `id`, `person_id`, `action` (`respond` / `call` / `escalate` / `send_neighbor` / `claim_timeline`), `note`, `requested_by`, `created_at`, `state` (`pending` / `done` / `failed`), `result`. A dashboard button writes one; the worker runs the agents and writes back the result. Read through `ops_action_request` (staff and viewers). |
 
 Scheduled tables (SpacetimeDB scheduled reducers): `assignment_timeout_schedule`,
 `key_pass_expiry_schedule`, `recount_schedule`.
@@ -85,7 +86,12 @@ From phones and channels:
 
 From helpers:
 - `accept_assignment(assignment_id)`, `decline_assignment(assignment_id)`: the helper's own
-  identity or staff.
+  identity or staff. Accepting moves an `open` SOS to `assigned`; an `escalated` SOS stays
+  `escalated` (a neighbor on the way does not take it off the responders' list).
+
+From the dashboard (staff only, not viewers):
+- `request_action(person_id, action, note)`: asks the agents to act now. The worker answers with
+  `finish_action(request_id, state, result)` (worker only).
 - `mark_safe(person_id, note)`: self, staff, or a helper whose assignment on one of the person's
   active SOS events is `accepted`. Writes an `audit_log` row.
 
@@ -136,7 +142,9 @@ Folders, one owner branch each:
 `agents/src/store/types.ts` defines `FirstLineStore`: one async method per worker reducer above
 (camelCase: `saveTriage`, `assignHelper`, ...) plus reads (`getPerson`, `getSafetyNet`,
 `listOpenSos`, `listTimedOutAssignments`, `listUnknownPeople`, `getCell`) and an
-`onSos` / `onSignal` / `onAssignmentTimeout` subscription API. Branches that need it import the
+`onSos` / `onSignal` / `onAssignmentTimeout` / `onAssignmentDeclined` / `onCheckIn` /
+`onActionRequest` subscription API. A `needs_help` check-in with no active SOS makes the worker
+open one (`client_id` `checkin:<id>`), so triage and dispatch run without anyone clicking. Branches that need it import the
 type and use `InMemoryStore` for tests; the real SpacetimeDB adapter is wired at integration.
 
 Messaging and sim call reducers through the same `FirstLineStore` (`pressSos`, `checkIn`,
