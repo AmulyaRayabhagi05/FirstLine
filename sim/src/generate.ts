@@ -240,10 +240,14 @@ function buildNets(rng: Rng, people: Person[], households: Household[]): NetMemb
       continue;
     }
     const h = hhById.get(owner.householdId)!;
-    const nearby: Person[] = [];
-    for (const cell of gridDisk(h.h3Cell, 1)) {
-      for (const c of byCell.get(cell) ?? []) {
-        if (c.householdId !== owner.householdId && canHelp(c) && !c.demoRole) nearby.push(c);
+    // Widen the search until there are enough candidates (sparse edges of a neighborhood).
+    let nearby: Person[] = [];
+    for (let k = 1; k <= 4 && nearby.length < 6; k++) {
+      nearby = [];
+      for (const cell of gridDisk(h.h3Cell, k)) {
+        for (const c of byCell.get(cell) ?? []) {
+          if (c.householdId !== owner.householdId && canHelp(c) && !c.demoRole) nearby.push(c);
+        }
       }
     }
     nearby.sort((a, c) => dist2(owner, a) - dist2(owner, c) || a.id - c.id);
