@@ -8,7 +8,8 @@
     "storm": "tsx src/cli/storm.ts",
     "measure": "tsx src/cli/measure.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "load-live": "tsx src/cli/loadLive.ts"
   },
   "engines": {
     "node": ">=22"

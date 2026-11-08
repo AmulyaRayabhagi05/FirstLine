@@ -201,3 +201,13 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
   .card { left: max(var(--gut), env(safe-area-inset-left, 0px)); right: max(var(--gut), env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: none; max-height: 55%; }
 }
 @media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+
+/* Live data bar (replaces the replay slider) and incident reports */
+.livebar .dot { width: 10px; height: 10px; display: inline-block; }
+.livebar .livemsg { font-size: 9px; color: var(--cream); overflow-wrap: anywhere; }
+.livebar .ticks { flex-wrap: wrap; gap: 4px 12px; }
+.reports { left: max(var(--gut), env(safe-area-inset-left, 0px)); bottom: calc(var(--gut) + 84px + env(safe-area-inset-bottom, 0px)); width: 300px; max-height: 38vh; overflow: auto; padding: 10px 12px; }
+.reports .rhead { display: flex; justify-content: space-between; width: 100%; font-size: 9px; color: var(--cream); background: none; border: 0; padding: 0; cursor: pointer; }
+.reports .log { margin-top: 8px; }
+.reports .muted { color: var(--dim); }
+@media (max-width: 760px) { .reports { display: none; } }
