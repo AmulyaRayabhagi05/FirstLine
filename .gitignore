@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 *.pem
+!db/tiger/timescale-ca.pem
 *.key
 
 # Node
