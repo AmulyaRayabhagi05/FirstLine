@@ -48,6 +48,7 @@ import LogUnlockReducer from "./log_unlock_reducer";
 import MarkSafeReducer from "./mark_safe_reducer";
 import PressSosReducer from "./press_sos_reducer";
 import PurgeEventReducer from "./purge_event_reducer";
+import RaiseMinAgeReducer from "./raise_min_age_reducer";
 import RecountNowReducer from "./recount_now_reducer";
 import RegisterPersonReducer from "./register_person_reducer";
 import RemoveStaffReducer from "./remove_staff_reducer";
@@ -264,6 +265,7 @@ const reducersSchema = __reducers(
   __reducerSchema("mark_safe", MarkSafeReducer),
   __reducerSchema("press_sos", PressSosReducer),
   __reducerSchema("purge_event", PurgeEventReducer),
+  __reducerSchema("raise_min_age", RaiseMinAgeReducer),
   __reducerSchema("recount_now", RecountNowReducer),
   __reducerSchema("register_person", RegisterPersonReducer),
   __reducerSchema("remove_staff", RemoveStaffReducer),

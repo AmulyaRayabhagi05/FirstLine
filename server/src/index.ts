@@ -712,6 +712,20 @@ export const trim_history = spacetimedb.reducer(
   }
 );
 
+// Demo data fix-up: anyone younger than min_age becomes an adult between min_age and
+// min_age + 15 (spread by id, so not everyone lands on the same age). Owner only.
+export const raise_min_age = spacetimedb.reducer({ min_age: t.u8() }, (ctx, { min_age }) => {
+  if (!isOwner(ctx)) fail('only the database owner may change ages');
+  if (min_age < 18 || min_age > 60) fail('min_age must be between 18 and 60');
+  let n = 0;
+  for (const p of [...ctx.db.person.iter()]) {
+    if (p.age >= min_age) continue;
+    ctx.db.person.id.update({ ...p, age: min_age + Number(p.id % 16n) });
+    n++;
+  }
+  audit(ctx, 'raise_min_age', `${n} people raised to ${min_age}+`);
+});
+
 export const recount_now = spacetimedb.reducer(ctx => {
   if (!isOwner(ctx) && !isWorker(ctx)) fail('only the owner or worker may force a recount');
   recount(ctx);
