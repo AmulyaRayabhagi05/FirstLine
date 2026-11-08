@@ -84,9 +84,19 @@ It is urgency 5 / P1 / professional when ANY of these is true:
 - signs of serious hypothermia: confusion, slurred speech or very sleepy in the cold
 Example: "agua entrando, mi mamá no puede caminar" (water coming in, my mom cannot walk) => urgency 5, professional, P1.
 
+Use ONLY facts in the message and the PROFILE. Never write that someone is trapped, cannot walk, is hurt or
+that water is entering unless the message or the profile says so.
+
+A check-in that only says they need help, with no details, is not by itself a life threat. Decide from the PROFILE:
+- urgency 5, P1, professional: uses a powered medical device (oxygen, dialysis) or cannot walk
+- urgency 4, P2, professional: age 80+ and lives alone, or limited mobility and lives alone
+- urgency 3, P2, neighbor: age 65+, lives alone, or limited mobility
+- urgency 2, P3, neighbor: everyone else (a neighbor checks on them)
+Say in the reason which profile facts decided it, e.g. "No details; 84, lives alone, uses oxygen [power-device-backup]".
+
 ${RESPONDER_RULES}
 
-Steps: call get_person_profile, then lookup_protocol with the hazard you see, optionally get_weather, then save_triage.
+Steps: the PROFILE is in the task. Call lookup_protocol with the hazard you see, optionally get_weather, then save_triage.
 Your reason must cite 1-2 card ids from lookup_protocol in brackets, e.g. "Generator in garage and headache: possible carbon monoxide [co-symptoms-911]". Then set done=true.`;
 
 /**
@@ -126,7 +136,8 @@ const RULES: { re: RegExp; urgency: number; needs: Needs; why: string }[] = [
   { re: /(no respira|not breathing|unconscious|inconsciente|chest pain|dolor de pecho|bleed|sangr|fire|fuego|incendio|heart|corazon)/, urgency: 5, needs: "professional", why: "possible medical emergency or fire" },
   { re: /(carbon monoxide|monoxido|co alarm|alarma de co)/, urgency: 5, needs: "professional", why: "possible carbon monoxide" },
   { re: /(pipe burst|burst pipe|tuberia reventada|se reviento|water everywhere|leak|fuga)/, urgency: 2, needs: "neighbor", why: "burst pipe" },
-  { re: /(water (is )?(coming|rising)|agua (entrando|subiendo)|flood|inunda|nuoc|swept|atrapad|trapped)/, urgency: 5, needs: "professional", why: "rising water / trapped" },
+  // The bare word "flood" is not a life threat (every flood check-in says it); rising or entering water, or being trapped, is.
+  { re: /(water (is )?(coming|rising|entering)|agua (entrando|subiendo)|flood(ing|ed)? (in|into) (the|my|our) (house|home|apartment)|inundad[oa] (la|mi) casa|nuoc (vao|dang len)|swept|atrapad|trapped)/, urgency: 5, needs: "professional", why: "rising water / trapped" },
   { re: /(oxygen|oxigeno|ventilator|dialysis|dialisis|insulin|insulina)/, urgency: 4, needs: "professional", why: "medical device or medication at risk" },
   { re: /(can'?t walk|cannot walk|no puede caminar|wheelchair|silla de ruedas|bedridden)/, urgency: 4, needs: "neighbor", why: "person cannot walk" },
   { re: /(no power|sin luz|sin electricidad|cold|frio|heat|calor)/, urgency: 3, needs: "neighbor", why: "power or temperature problem" },
@@ -152,6 +163,23 @@ export function ruleTriage(message: string, person?: Person) {
   if (person && (person.mobility === "cannot_walk" || person.poweredDevice) && urgency >= 4) {
     urgency = 5;
     whys.push(person.mobility === "cannot_walk" ? "profile: cannot walk" : "profile: powered device");
+  }
+  // A bare "needs help" with no danger words: the profile decides, same ladder as the prompt.
+  if (whys.length === 0 && person && /need(s|ing)? help|necesit/.test(text)) {
+    const alone = person.livesAlone;
+    if (person.poweredDevice || person.mobility === "cannot_walk") {
+      urgency = 5;
+      needs = "professional";
+      whys.push(person.poweredDevice ? "needs help and uses a powered medical device" : "needs help and cannot walk");
+    } else if ((person.age >= 80 && alone) || (person.mobility === "limited" && alone)) {
+      urgency = 4;
+      needs = "professional";
+      whys.push(person.age >= 80 ? `needs help, ${person.age} and lives alone` : "needs help, limited mobility and lives alone");
+    } else if (person.age >= 65 || alone || person.mobility === "limited") {
+      urgency = 3;
+      needs = "neighbor";
+      whys.push(person.age >= 65 ? `needs help, age ${person.age}` : alone ? "needs help and lives alone" : "needs help, limited mobility");
+    }
   }
   if (whys.length === 0) needs = "neighbor";
   const priority: Priority = urgency >= 5 ? "P1" : urgency >= 3 ? "P2" : "P3";
@@ -258,7 +286,17 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
       name: "save_triage",
       description: "Save your triage decision. Call exactly once.",
       input: saveTriageInput,
-      run: (v) => (saved ? Promise.resolve({ already_saved: true }) : save(v, "model", modelName)),
+      run: async (v) => {
+        if (saved) return { already_saved: true };
+        const invented = inventedClaims(v.reason, sos.message, await store.getPerson(sos.personId));
+        if (invented.length) {
+          await log("thought", `Rejected a reason with facts nobody reported (${invented.join(", ")})`);
+          return {
+            error: `Your reason says ${invented.join(" and ")}, but neither the message nor the PROFILE says that. Rewrite the reason and urgency using only the message and PROFILE, then call save_triage again.`,
+          };
+        }
+        return save(v, "model", modelName);
+      },
     }),
   ];
 
@@ -275,7 +313,18 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
     },
   };
 
-  const task = `SOS #${sos.id} from person ${sos.personId} via ${sos.channel} at ${sos.createdAt.toISOString()}:\n${untrusted(sos.message)}`;
+  // The profile goes in the task: in 121 recorded runs the model never called get_person_profile.
+  const person0 = await store.getPerson(sos.personId);
+  readProfile = !!person0;
+  const fromCheckIn = /^(checkin|needs-help):/.test(sos.clientId);
+  const task = [
+    `SOS #${sos.id} from person ${sos.personId} via ${sos.channel} at ${sos.createdAt.toISOString()}:`,
+    untrusted(sos.message),
+    fromCheckIn ? "This SOS was opened from a check-in that only said they need help; there are no other details." : "",
+    `PROFILE: ${person0 ? JSON.stringify(profileSummary(person0)) : "unknown person"}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
   const result = await runAgentLoop({
     agent: "triage",
     subject,
@@ -320,4 +369,23 @@ function recordCards<T extends { run: (args: never) => Promise<unknown> }>(tool:
       return out;
     }) as T["run"],
   };
+}
+
+// Claims a triage reason may only make when the message or the profile supports them.
+const CLAIMS: { name: string; reason: RegExp; support: RegExp; profile?: (p: Person) => boolean }[] = [
+  { name: "someone is trapped", reason: /trapped|entrapment|atrapad/i, support: /trapped|atrapad|can'?t get out|cannot get out|stuck|no puedo salir/i },
+  { name: "water is entering the home", reason: /water (is )?(entering|rising|coming)|flooding (the|their) home/i, support: /water|agua|nuoc|flooding (in|into)/i },
+  {
+    name: "someone cannot walk",
+    reason: /cannot walk|can'?t walk|inability to (walk|move)|unable to (walk|move)|immobile/i,
+    support: /walk|caminar|wheelchair|silla de ruedas|bedridden/i,
+    profile: (p) => p.mobility === "cannot_walk",
+  },
+  { name: "someone is hurt", reason: /injur|hurt|bleeding|unconscious/i, support: /injur|hurt|bleed|sangr|unconscious|herid/i },
+];
+
+/** Claims in the reason that neither the message nor the profile supports. */
+export function inventedClaims(reason: string, message: string, person?: Person): string[] {
+  const words = reason.replace(/\[[^\]]*\]/g, " "); // cited card ids like [flood-trapped-high] are not claims
+  return CLAIMS.filter((c) => c.reason.test(words) && !c.support.test(message) && !(person && c.profile?.(person))).map((c) => c.name);
 }

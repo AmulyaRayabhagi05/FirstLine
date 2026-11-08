@@ -123,15 +123,36 @@ export class TigerHistory implements HistoryService {
 }
 
 /** Twilio SMS and automated check-in calls. Visit requests text the helper when one is named. */
+/** A number Twilio can actually reach. The synthetic residents have numbers like "+14695550109;ext=0532". */
+export const isDialable = (phone: string) => /^\+[1-9]\d{7,14}$/.test(phone.trim());
+
+/**
+ * Synthetic neighbors cannot answer a phone, so every offer to them used to time out (200 of 255).
+ * With SIM_NEIGHBORS on (default), they answer like people: about 55% accept within 40-90 s, 20%
+ * decline within 20-60 s, the rest never answer and the offer times out. Picked from the
+ * assignment id, so a run is repeatable. Real phone numbers are never simulated.
+ */
+export function simulatedAnswer(assignmentId: number): { answer: "accept" | "decline" | "none"; afterMs: number } {
+  let h = (assignmentId * 2654435761) >>> 0;
+  const r = (h % 1000) / 1000;
+  h = (h ^ (h >>> 13)) >>> 0;
+  const jitter = (h % 1000) / 1000;
+  if (r < 0.55) return { answer: "accept", afterMs: 40_000 + jitter * 50_000 };
+  if (r < 0.75) return { answer: "decline", afterMs: 20_000 + jitter * 40_000 };
+  return { answer: "none", afterMs: 0 };
+}
+
 export class TwilioComms implements CommsService {
   constructor(
     private readonly client: TwilioLike,
     private readonly cfg: TwilioConfig,
     private readonly store: FirstLineStore,
     private readonly channelStore: ChannelStore,
+    private readonly simNeighbors = process.env.SIM_NEIGHBORS !== "0",
   ) {}
 
   async sendSms(to: string, body: string) {
+    if (!isDialable(to)) return { id: "skipped-synthetic-number" };
     const r = await sendSms(this.client, this.cfg, to, body);
     return { id: String((r as { sid?: string }).sid ?? "sms") };
   }
@@ -139,6 +160,7 @@ export class TwilioComms implements CommsService {
   async requestCall(req: CallRequest) {
     const person = await this.store.getPerson(req.personId);
     if (!person) throw new Error(`person ${req.personId} not found`);
+    if (!isDialable(person.phone)) return { id: "skipped-synthetic-number" };
     if (!this.cfg.publicUrl) {
       // No public webhook URL for the voice flow: fall back to an SMS check-in.
       return this.sendSms(person.phone, "FirstLine check-in: are you OK? Reply FL OK, or FL HELP and what you need.");
@@ -148,6 +170,18 @@ export class TwilioComms implements CommsService {
   }
 
   async offerCall(req: OfferCall) {
+    if (!isDialable(req.phone)) {
+      if (!this.simNeighbors) return { id: "skipped-synthetic-number" };
+      const s = simulatedAnswer(req.assignmentId);
+      if (s.answer !== "none") {
+        setTimeout(() => {
+          const act = s.answer === "accept" ? this.store.acceptAssignment(req.assignmentId) : this.store.declineAssignment(req.assignmentId);
+          // The offer may have timed out or been resolved meanwhile; that is fine.
+          act.catch(() => undefined);
+        }, s.afterMs).unref?.();
+      }
+      return { id: `sim-${s.answer}` };
+    }
     const r = await placeOfferCall(this.client, this.cfg, req);
     return { id: r.callSid };
   }

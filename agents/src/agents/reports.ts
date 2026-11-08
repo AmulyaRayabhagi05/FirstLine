@@ -157,11 +157,26 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
 }
 
 /** Briefings for every res-8 cell with anyone not marked safe. */
-export async function runReportsSweep(deps: AgentDeps): Promise<ReportOutcome[]> {
+// What each cell's last report was written from. A cell is rewritten only when its counts or
+// blocked roads change, or its report is over 30 minutes old. (Rewriting every cell every two
+// minutes was 70% of all agent steps, with near-identical reports.)
+const lastWritten = new Map<string, { key: string; at: number }>();
+const REFRESH_MS = 30 * 60 * 1000;
+
+export async function runReportsSweep(deps: AgentDeps, opts: { force?: boolean } = {}): Promise<ReportOutcome[]> {
   const out: ReportOutcome[] = [];
+  const now = (deps.now ?? (() => new Date()))().getTime();
   for (const stats of await cellStats(deps)) {
     if (stats.p1 + stats.p2 + stats.needsHelp + stats.unknown === 0) continue;
+    const roads = await deps.services.roads.blockedRoads(stats.h3Cell8).catch(() => [] as string[]);
+    const key = [stats.p1, stats.p2, stats.needsHelp, stats.unknown, stats.safe, [...roads].sort().join(";")].join("|");
+    const prev = lastWritten.get(stats.h3Cell8);
+    if (!opts.force && prev && prev.key === key && now - prev.at < REFRESH_MS) continue;
     out.push(await runCellReport(deps, stats));
+    lastWritten.set(stats.h3Cell8, { key, at: now });
   }
   return out;
 }
+
+/** Tests: forget what was written. */
+export const resetReportMemory = () => lastWritten.clear();
