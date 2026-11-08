@@ -7,6 +7,7 @@ import type { Id, Needs, Person, Priority, SosEvent } from "../store/types.js";
 import { confidence, defineTool, runAgentLoop, stepLogger, untrusted, type AgentDeps } from "./loop.js";
 import { RESPONDER_RULES, makeLookupProtocolTool } from "../knowledge/harness.js";
 import { searchProtocols } from "../knowledge/retrieve.js";
+import { triageConfidence } from "./confidence.js";
 
 export interface TriageOutcome {
   sosId: Id;
@@ -166,6 +167,7 @@ export function ruleTriage(message: string, person?: Person) {
     priority,
     reason: cites.length ? `${base} ${cites.join(" ")}` : base,
     confidence: whys.length ? 0.55 : 0.3,
+    whys,
   };
 }
 
@@ -176,16 +178,37 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
   const now = deps.now ?? (() => new Date());
   let saved: TriageOutcome | undefined;
   let modelName = "unknown";
+  // What the model actually did, for the evidence-based confidence.
+  let readProfile = false;
+  const retrievedCardIds = new Set<string>();
 
   const save = async (v: z.infer<typeof saveTriageInput>, source: "model" | "rules", model: string) => {
     let raised = false;
     if (source === "model") {
-      const f = applySafetyFloor(v, sos.message, await store.getPerson(sos.personId));
+      const person = await store.getPerson(sos.personId);
+      const modelPriority = v.priority;
+      const f = applySafetyFloor(v, sos.message, person);
       if (f.raised) {
         await log("decision", `Safety floor: model said ${f.from}, raised to P1 because rules detected a life threat (${f.why})`);
         v = f.value;
         raised = true;
       }
+      // Replace the model's self-reported number with one computed from checks we can verify.
+      const rules = ruleTriage(sos.message, person);
+      const conf = triageConfidence({
+        modelPriority,
+        rules: { priority: rules.priority, whys: rules.whys },
+        raisedBySafetyFloor: raised,
+        reason: v.reason,
+        retrievedCardIds,
+        readProfile,
+        message: sos.message,
+        signals: person ? await store.listSignals(person.id) : [],
+        weatherAlert: (await store.getCell(sos.h3Cell))?.alertLevel || undefined,
+        selfReported: v.confidence,
+      });
+      v = { ...v, confidence: conf.value };
+      await log("decision", conf.summary, conf.value);
     }
     const triageId = await store.saveTriage({ sosId: sos.id, personId: sos.personId, ...v, model });
     const person = await store.getPerson(sos.personId);
@@ -210,6 +233,7 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
       input: z.object({}).passthrough(),
       run: async () => {
         const p = await store.getPerson(sos.personId);
+        readProfile = !!p;
         return p ? profileSummary(p) : { error: "unknown person" };
       },
     }),
@@ -223,10 +247,13 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
         return { cell_alert: cell?.alertLevel || "none", alerts };
       },
     }),
-    makeLookupProtocolTool(async () => {
-      const p = await store.getPerson(sos.personId);
-      return p ? { age: p.age, poweredDevice: p.poweredDevice, medicalNeeds: p.medicalNeeds, mobility: p.mobility, livesAlone: p.livesAlone } : undefined;
-    }),
+    recordCards(
+      makeLookupProtocolTool(async () => {
+        const p = await store.getPerson(sos.personId);
+        return p ? { age: p.age, poweredDevice: p.poweredDevice, medicalNeeds: p.medicalNeeds, mobility: p.mobility, livesAlone: p.livesAlone } : undefined;
+      }),
+      retrievedCardIds,
+    ),
     defineTool({
       name: "save_triage",
       description: "Save your triage decision. Call exactly once.",
@@ -275,9 +302,22 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
       ? `model error: ${result.error.slice(0, 160)}`
       : "model finished without a valid save_triage";
     const person = await store.getPerson(sos.personId);
-    const r = ruleTriage(sos.message, person);
+    const { whys: _whys, ...r } = ruleTriage(sos.message, person);
     await save(r, "rules", "rules");
     await log("decision", `Fallback rules (${why}): ${r.priority}, urgency ${r.urgency}, needs ${r.needs}. ${r.reason}`, r.confidence);
   }
   return saved!;
+}
+
+/** Wraps lookup_protocol so the ids it returns are remembered (to check the model's citations). */
+function recordCards<T extends { run: (args: never) => Promise<unknown> }>(tool: T, into: Set<string>): T {
+  const run = tool.run;
+  return {
+    ...tool,
+    run: (async (args: never) => {
+      const out = (await run(args)) as { cards?: { id: string }[] };
+      for (const c of out?.cards ?? []) into.add(c.id.toLowerCase());
+      return out;
+    }) as T["run"],
+  };
 }

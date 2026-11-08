@@ -250,7 +250,10 @@ describe("Mr. Lee silent-signal scenario", () => {
     const steps = await store.listAgentSteps(`person:${ids.lee}`);
     expect(steps[0]!.content).toMatch(/^Flagged by score: P2/);
     expect(steps.some((s) => s.kind === "tool_call" && s.content.startsWith("request_call"))).toBe(true);
-    expect(steps.at(-1)).toMatchObject({ kind: "decision", confidence: 0.55 });
+    // Confidence comes from the evidence (signals, what it checked), not the model's 0.55.
+    const conf = steps.find((s) => s.content.startsWith("Confidence"));
+    expect(conf).toMatchObject({ kind: "decision" });
+    expect(conf!.content).toMatch(/✓ signals: .*✓ checked the signals · ✓ checked the contact history/);
 
     // Same sweep again inside the cooldown: no duplicate call.
     expect(await agent.sweep()).toHaveLength(0);

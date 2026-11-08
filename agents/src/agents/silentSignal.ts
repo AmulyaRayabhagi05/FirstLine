@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { computePriority, type PriorityResult } from "../priority.js";
 import type { Id, Person } from "../store/types.js";
+import { silentConfidence } from "./confidence.js";
 import { called, confidence as confidenceSchema, defineTool, runAgentLoop, stepLogger, untrusted, type AgentDeps } from "./loop.js";
 
 /** Below this confidence the agent must ask a human (call or visit). */
@@ -160,15 +161,27 @@ request_call if they have a phone, request_visit if there is no working phone. S
 
     await log("thought", `Flagged by score: ${pr.summary}`);
     const result = await runAgentLoop({ agent: "silent_signal", subject, deps: this.deps, instructions, task, tools });
-    const conf = result.confidence;
+    // The guard uses confidence computed from the evidence the review had, not the model's own number.
+    const cell = await store.getCell(person.h3Cell);
+    const evidence = silentConfidence({
+      signals: await store.listSignals(person.id),
+      checkedSignals: called(result, "get_signals"),
+      checkedHistory: called(result, "get_history"),
+      lastSeen: person.lastSeen,
+      weatherAlert: cell?.alertLevel || undefined,
+      now: this.now(),
+      selfReported: result.confidence,
+    });
+    const conf = evidence.value;
+    await log("decision", evidence.summary, conf);
     let source: SilentSignalFinding["source"] = result.finished ? "model" : "rules";
 
-    if (!requested && (conf === undefined || conf < ASK_HUMAN_BELOW)) {
+    if (!requested && conf < ASK_HUMAN_BELOW) {
       source = "rules";
       const reason = `Possible silent emergency: ${pr.reasons.slice(0, 4).join(", ")}`;
       if (person.phone) await requestCall(reason);
       else await requestVisit(reason);
-      await log("decision", `Guard: confidence ${conf ?? "n/a"} is low, asked a human (${requested}).`, conf);
+      await log("decision", `Guard: confidence ${conf.toFixed(2)} is below ${ASK_HUMAN_BELOW}, asked a human (${requested}).`, conf);
     }
     const category = called(result, "set_priority") ? ((await store.getPerson(person.id))?.priority ?? pr.category) : pr.category;
     return { personId: person.id, score: pr.score, category, reasons: pr.reasons, requested, confidence: conf, source };
