@@ -37,6 +37,39 @@ export interface Resident {
   helper: string | null;
   net: { name: string; status: Status }[];
   log: AgentLine[];
+  /** Every agent step about this household (thoughts, tool calls, results, decisions). */
+  reasoning: AgentLine[];
+  /** Latest Nemotron triage of anyone in the household. */
+  triage: TriageInfo | null;
+  /** Latest helper assignment on the household's SOS events, any state. */
+  assignment: AssignmentInfo | null;
+  /** Latest key pass to this household. */
+  keyPass: KeyPassInfo | null;
+}
+
+export interface TriageInfo {
+  urgency: number; // 1-5
+  confidence: number; // 0-1
+  needs: string; // 'neighbor' | 'professional'
+  priority: string;
+  reason: string;
+  model: string;
+  at: number;
+}
+
+export interface AssignmentInfo {
+  state: string; // 'offered' | 'accepted' | 'declined' | 'timed_out' | 'done'
+  helper: string;
+  ring: number;
+  at: number;
+}
+
+export interface KeyPassInfo {
+  helper: string;
+  approvedBy: string;
+  grantedAt: number;
+  expiresAt: number;
+  revoked: boolean;
 }
 
 export interface IncidentReport {
@@ -58,6 +91,9 @@ export interface LiveInfo {
   households: number;
   openSos: number;
   alertedCells: number;
+  triaged: number;
+  agentSteps: number;
+  activeKeyPasses: number;
   lastUpdate: number;
 }
 
@@ -110,7 +146,7 @@ export const useMap = create<MapState>((set, get) => ({
   residents: homes.map(() => null),
   feed: [],
   reports: [],
-  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, lastUpdate: 0 },
+  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0 },
   version: 0,
   cam: { x: 0, z: 0, theta: 0.75 },
   panTo: null,
