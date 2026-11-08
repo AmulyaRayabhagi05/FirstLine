@@ -80,7 +80,7 @@ export function rankCandidates(
 
 const INSTRUCTIONS = `You are the DISPATCH agent for FirstLine, a disaster-response network of neighbors.
 For one SOS you decide who goes. Rules:
-- If triage says needs=professional or priority P1, call escalate (professional responders), AND still offer the job to the best neighbor so someone nearby can help until they arrive.
+- Only if triage says needs=professional or priority P1, call escalate (professional responders), AND still offer the job to the best neighbor so someone nearby can help until they arrive.
 - Otherwise offer it to one neighbor with assign_helper.
 - Pick helpers with list_helpers: lower ring first (1 = chosen by the person, 2 = next block, 3 = wider), then useful skills (boat/truck for water, generator for power, medical), then distance.
 - When an offer timed out or was declined, replan: offer to the next helper in the same ring, then the next ring. list_helpers already skips helpers who were tried. If it returns nobody, escalate.
@@ -195,7 +195,16 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
       name: "escalate",
       description: "Send this SOS to professional responders (EMS, fire, rescue).",
       input: z.object({ reason: z.string().min(3) }),
-      run: async ({ reason }) => doEscalate(reason),
+      run: async ({ reason }) => {
+        // Responders are for what triage judged needs them. A P2/P3 "neighbor" case is escalated only
+        // when nobody in the safety net is left to ask (the model escalated 75 such cases in one run).
+        if (triage && triage.needs === "neighbor" && triage.priority !== "P1" && (await candidates()).length > 0) {
+          return {
+            error: `Triage said ${triage.priority}, a neighbor can handle this. Offer it to the first helper from list_helpers with assign_helper instead. Escalate only if list_helpers returns nobody.`,
+          };
+        }
+        return doEscalate(reason);
+      },
     }),
   ];
 
