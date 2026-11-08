@@ -104,7 +104,11 @@ export function Toolbar() {
       </div>
       <button className="panel tbtn" aria-expanded={s.layersOpen} onClick={() => s.setLayersOpen(!s.layersOpen)}>Layers</button>
       <button className="panel tbtn red" onClick={startDemo} aria-pressed={demoOn}>{demoOn ? '■ Stop' : '▶ Tour'}</button>
-      <button className="panel tbtn" onClick={() => { signOut(); s.setSignedIn(false); }} title="Forget this browser's access key">Sign out</button>
+      {s.liveInfo.viewer ? (
+        <button className="panel tbtn" onClick={() => { s.setWantStaff(true); s.setSignedIn(false); }} title="Sign in with a staff access key to act on households">Staff sign-in</button>
+      ) : (
+        <button className="panel tbtn" onClick={() => { signOut(); s.setSignedIn(false); }} title="Forget this browser's access key">Sign out</button>
+      )}
       {s.layersOpen && (
         <section className="panel layers" aria-label="Layers and legend">
           <div className="slide">
@@ -218,7 +222,7 @@ function FloodControls() {
   const statuses = useMap((s) => s.statuses);
   const [busy, setBusy] = useState('');
   const [confirm, setConfirm] = useState<'flood' | 'clear' | null>(null);
-  if (info.state !== 'subscribed' || info.people === 0) return null;
+  if (info.state !== 'subscribed' || info.people === 0 || info.viewer) return null;
   const active = statuses.some((s) => s === 'p1' || s === 'p2' || s === 'unknown' || s === 'enroute');
   const run = async (kind: 'flood' | 'clear') => {
     setConfirm(null);
@@ -297,6 +301,7 @@ export function HouseholdCard() {
   const now = useNow();
   const [note, setNote] = useState('');
   const [showReasoning, setShowReasoning] = useState(false);
+  const viewer = useMap((s) => s.liveInfo.viewer);
   useEffect(() => {
     setNote('');
     setShowReasoning(false);
@@ -461,7 +466,8 @@ export function HouseholdCard() {
         <button className="btn primary" onClick={() => act('neighbor')}>Send neighbor</button>
         <button
           className="btn"
-          disabled={!r.members.some((m) => m.status !== 'safe' && m.status !== 'normal')}
+          disabled={viewer || !r.members.some((m) => m.status !== 'safe' && m.status !== 'normal')}
+          title={viewer ? 'Staff sign-in required' : undefined}
           onClick={async () => {
             setNote('Marking safe…');
             try {
@@ -472,7 +478,7 @@ export function HouseholdCard() {
             }
           }}
         >
-          Mark safe<small>writes to the database</small>
+          Mark safe<small>{viewer ? 'staff only' : 'writes to the database'}</small>
         </button>
       </div>
       <p className="actnote nc">{note || 'Actions show the flow only. No calls or messages are sent from the dashboard.'}</p>
@@ -515,14 +521,17 @@ export function SignIn() {
   const info = useMap((s) => s.liveInfo);
   const signedIn = useMap((s) => s.signedIn);
   const setSignedIn = useMap((s) => s.setSignedIn);
+  const wantStaff = useMap((s) => s.wantStaff);
+  const setWantStaff = useMap((s) => s.setWantStaff);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [copied, setCopied] = useState(false);
   const hasAccess = info.state === 'subscribed' && info.people > 0;
+  // Anyone who can read goes straight in, unless a viewer opened this screen to sign in as staff.
   useEffect(() => {
-    if (hasAccess && !signedIn) setSignedIn(true);
-  }, [hasAccess, signedIn]);
+    if (hasAccess && !signedIn && !(info.viewer && wantStaff)) setSignedIn(true);
+  }, [hasAccess, signedIn, info.viewer, wantStaff]);
   if (signedIn) return null;
   const id = info.identity ? `0x${info.identity}` : '';
   const submit = async (e: React.FormEvent) => {
@@ -532,7 +541,10 @@ export function SignIn() {
     const ok = await signIn(key);
     setBusy(false);
     setKey('');
-    if (ok) setSignedIn(true);
+    if (ok) {
+      setWantStaff(false);
+      setSignedIn(true);
+    }
     else setMsg(useMap.getState().liveInfo.people === 0 && useMap.getState().liveInfo.identity ? 'That key is not staff, or was not accepted. Check it, or ask an admin to grant it.' : 'That key was not accepted. Check it and try again.');
   };
   const copy = async () => {
@@ -561,7 +573,9 @@ export function SignIn() {
           {id && <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy ID'}</button>}
         </div>
         <p className="signline small nc">Admin runs: spacetime call firstline add_staff '"{id || '<this ID>'}"'</p>
-        <button type="button" className="skip" onClick={() => setSignedIn(true)}>Look around without data</button>
+        <button type="button" className="skip" onClick={() => { setWantStaff(false); setSignedIn(true); }}>
+          {info.viewer ? 'Back to the map (read-only)' : 'Look around without data'}
+        </button>
       </form>
     </div>
   );

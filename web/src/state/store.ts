@@ -97,6 +97,8 @@ export interface LiveInfo {
   agentSteps: number;
   activeKeyPasses: number;
   lastUpdate: number;
+  /** Connected with the public read-only viewer token: can read, cannot write. */
+  viewer: boolean;
 }
 
 export interface MapState {
@@ -136,6 +138,9 @@ export interface MapState {
   /** True once the person has signed in (or chose to look without data) for this visit. */
   signedIn: boolean;
   setSignedIn: (v: boolean) => void;
+  /** A viewer asked for the staff sign-in screen (so it does not auto-close on read access). */
+  wantStaff: boolean;
+  setWantStaff: (v: boolean) => void;
 }
 
 export const useMap = create<MapState>((set, get) => ({
@@ -152,7 +157,7 @@ export const useMap = create<MapState>((set, get) => ({
   residents: homes.map(() => null),
   feed: [],
   reports: [],
-  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0 },
+  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0, viewer: false },
   version: 0,
   cam: { x: 0, z: 0, theta: 0.75 },
   panTo: null,
@@ -186,10 +191,12 @@ export const useMap = create<MapState>((set, get) => ({
       reports: [],
       selectedId: null,
       version: s.version + 1,
-      liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0 },
+      liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0, viewer: false },
     })),
   signedIn: false,
   setSignedIn: (v) => set({ signedIn: v }),
+  wantStaff: false,
+  setWantStaff: (v) => set({ wantStaff: v }),
 }));
 
 /** True while any household in the river flood zone needs help: the red band and dashed edge show only then. */

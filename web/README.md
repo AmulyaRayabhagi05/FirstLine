@@ -23,3 +23,9 @@ only: `VITE_*` values ship in the bundle, so never set it on a public build.
 The household card shows the latest Nemotron triage (`ops_triage`), the helper assignment and key
 pass (`ops_assignment`, `ops_key_pass`), and a **Show reasoning** toggle with every
 `ops_agent_step` row for that household (thoughts, tool calls, results, decisions). Full demo steps: [`../docs/demo.md`](../docs/demo.md).
+
+Access: with `VITE_SPACETIME_TOKEN` set (the hosted build), visitors read as the public viewer and
+see **Staff sign-in** to paste a staff access key; Mark safe and the flood controls appear only for
+staff, and Sign out returns to the viewer. In `npm run dev`, `web/admin.local.json` (from
+`npx tsx scripts/admin.ts`, git-ignored, never in a build) signs in as the demo admin. Point dev at
+Maincloud with a git-ignored `web/.env.local` (`VITE_SPACETIME_HOST`, `VITE_SPACETIME_DB`).
