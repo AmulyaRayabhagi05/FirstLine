@@ -18,10 +18,9 @@ function expectWellFormed(events: FeedEvent[]) {
     expect(typeof e.kind).toBe('string');
     expect(Number.isNaN(Date.parse(e.time))).toBe(false);
     expect(e.h3_cells.length).toBeGreaterThan(0);
-    for (const c of e.h3_cells) {
-      expect(isValidCell(c)).toBe(true);
-      expect(getResolution(c)).toBe(9);
-    }
+    // One assertion per event, not per cell: polygon alerts cover thousands of cells.
+    const bad = e.h3_cells.filter((c) => !isValidCell(c) || getResolution(c) !== 9);
+    expect(bad).toEqual([]);
   }
 }
 
@@ -72,7 +71,7 @@ describe('NWS alerts', () => {
     expect(ev[0].kind).toBe('flood_advisory');
     expect(ev[0].payload).toMatchObject({ event: 'Flood Advisory', alert_level: 'Flood Advisory', mapped_by: 'alert_polygon' });
     expect(ev[0].payload.expires).toBeTruthy();
-  });
+  }, 20_000); // ~18k res-9 cells from two county-sized polygons
 
   it('uses zone geometry for Dallas alerts without a polygon', () => {
     const f = structuredClone(raw.features.find((x: any) => !x.geometry));
