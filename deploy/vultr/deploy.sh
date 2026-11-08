@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
 # Deploy FirstLine to the Vultr server from a laptop checkout (Git Bash, WSL, macOS or Linux).
 #
-#   deploy/vultr/deploy.sh <server-ip>            build + upload the dashboard, update the worker
-#   deploy/vultr/deploy.sh <server-ip> --brev     also (re)authorize the server's tunnel key on Brev
+#   deploy/vultr/deploy.sh <server-ip>                      upload code, dashboard and secrets, restart
+#   deploy/vultr/deploy.sh <server-ip> --setup <site-host>  first time: also install the server
+#   deploy/vultr/deploy.sh <server-ip> --brev               also (re)authorize the tunnel key on Brev
 #
+# Code comes from the committed `main` branch (git archive), not the working tree.
 # Needs: SSH to root@<server-ip> with your key, web/.env.production.local holding the Maincloud
 # VIEWER token (never a staff token: it ships in the public bundle), agents/.env and
 # agents/.spacetime-token (the Maincloud worker token). --brev also needs WSL with the brev CLI
 # logged in (hope-nemotron-host in ~/.brev/ssh_config).
 set -euo pipefail
-IP="${1:?usage: deploy.sh <server-ip> [--brev]}"
+IP="${1:?usage: deploy.sh <server-ip> [--setup <site-host>] [--brev]}"
+shift
+SETUP_HOST=""
+BREV=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --setup) SETUP_HOST="${2:?--setup needs the site host}"; shift 2 ;;
+    --brev) BREV=1; shift ;;
+    *) echo "unknown option $1"; exit 1 ;;
+  esac
+done
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SSH="ssh -o StrictHostKeyChecking=accept-new root@$IP"
 
@@ -20,6 +32,14 @@ if grep -q '127.0.0.1\|localhost' "$ROOT/web/.env.production.local"; then
   echo "web/.env.production.local points at a local database; set VITE_SPACETIME_HOST to Maincloud"; exit 1
 fi
 
+echo "== upload code (main)"
+git -C "$ROOT" archive --format=tar main agents deploy | $SSH 'set -e; mkdir -p /srv/firstline/repo; tar -xf - -C /srv/firstline/repo'
+
+if [ -n "$SETUP_HOST" ]; then
+  echo "== one-time server setup for $SETUP_HOST"
+  $SSH "bash /srv/firstline/repo/deploy/vultr/setup.sh '$SETUP_HOST'"
+fi
+
 echo "== build dashboard"
 npm --prefix "$ROOT/web" run build
 
@@ -27,10 +47,10 @@ echo "== upload dashboard"
 tar -C "$ROOT/web/dist" -czf - . | $SSH 'set -e; rm -rf /srv/firstline/web.new; mkdir -p /srv/firstline/web.new; tar -xzf - -C /srv/firstline/web.new; rm -rf /srv/firstline/web.old; [ -d /srv/firstline/web ] && mv /srv/firstline/web /srv/firstline/web.old; mv /srv/firstline/web.new /srv/firstline/web; chown -R firstline:firstline /srv/firstline/web'
 
 echo "== update worker code and secrets"
-$SSH 'set -e; sudo -u firstline git -C /srv/firstline/repo pull --ff-only; sudo -u firstline npm ci --silent --prefix /srv/firstline/repo/agents'
+$SSH 'set -e; chown -R firstline:firstline /srv/firstline/repo; sudo -u firstline npm ci --silent --no-audit --no-fund --prefix /srv/firstline/repo/agents'
 tar -C "$ROOT/agents" -czf - .env .spacetime-token | $SSH 'set -e; cd /srv/firstline/repo/agents; tar -xzf -; chown firstline:firstline .env .spacetime-token; chmod 600 .env .spacetime-token'
 
-if [ "${2:-}" = "--brev" ]; then
+if [ "$BREV" = 1 ]; then
   echo "== authorize the server's tunnel key on the Brev box"
   PUB="$($SSH 'cat /home/firstline/.ssh/brev_ed25519.pub')"
   BREV_HOST="$(wsl -d Ubuntu -- bash -lc "awk '/^Host hope-nemotron-host/{f=1} f&&/Hostname/{print \$2; exit}' ~/.brev/ssh_config" | tr -d '\r\0')"
