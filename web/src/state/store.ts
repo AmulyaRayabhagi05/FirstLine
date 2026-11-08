@@ -37,6 +37,8 @@ export interface Resident {
   helper: string | null;
   net: { name: string; status: Status }[];
   log: AgentLine[];
+  /** Every person in the household, for actions that write per person (mark safe, the flood demo). */
+  members: { id: bigint; status: Status }[];
   /** Every agent step about this household (thoughts, tool calls, results, decisions). */
   reasoning: AgentLine[];
   /** Latest Nemotron triage of anyone in the household. */
@@ -130,6 +132,10 @@ export interface MapState {
   setLayersOpen: (v: boolean) => void;
   setLive: (data: { residents: (Resident | null)[]; feed: AgentLine[]; reports: IncidentReport[] }) => void;
   setLiveInfo: (info: Partial<LiveInfo>) => void;
+  resetLive: () => void;
+  /** True once the person has signed in (or chose to look without data) for this visit. */
+  signedIn: boolean;
+  setSignedIn: (v: boolean) => void;
 }
 
 export const useMap = create<MapState>((set, get) => ({
@@ -172,7 +178,24 @@ export const useMap = create<MapState>((set, get) => ({
       version: get().version + 1,
     }),
   setLiveInfo: (info) => set((s) => ({ liveInfo: { ...s.liveInfo, ...info } })),
+  resetLive: () =>
+    set((s) => ({
+      residents: homes.map(() => null),
+      statuses: homes.map(() => 'normal'),
+      feed: [],
+      reports: [],
+      selectedId: null,
+      version: s.version + 1,
+      liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, triaged: 0, agentSteps: 0, activeKeyPasses: 0, lastUpdate: 0 },
+    })),
+  signedIn: false,
+  setSignedIn: (v) => set({ signedIn: v }),
 }));
+
+/** True while any household in the river flood zone needs help: the red band and dashed edge show only then. */
+export function floodActive(statuses: Status[]): boolean {
+  return homes.some((h) => h.danger && (statuses[h.idx] === 'p1' || statuses[h.idx] === 'p2' || statuses[h.idx] === 'unknown'));
+}
 
 // Agent decisions worth surfacing to a person in the ticker (the feed already holds decisions only).
 export const isKeyDecision = (e: AgentLine) => e.kind === 'decision';
@@ -184,18 +207,19 @@ export function counts(statuses: Status[]) {
 }
 
 export const STATUS_LABEL: Record<Status, string> = {
-  p1: 'P1 · help now',
+  p1: 'Needs help now',
   p2: 'Silent risk',
   unknown: 'Not reached',
-  enroute: 'Neighbor en route',
+  enroute: 'Help on the way',
   safe: 'Checked in safe',
-  normal: 'No alert',
+  normal: 'Safe',
 };
+// Green is the normal state of the city. Red means a household needs someone; blue means help is moving.
 export const STATUS_COLOR: Record<Status, string> = {
-  p1: '#ff3b4e',
-  p2: '#ff9a3c',
-  unknown: '#f4d35e',
-  enroute: '#5aa9ff',
-  safe: '#4fe08f',
-  normal: '#5c5c6c',
+  p1: '#ff3347',
+  p2: '#ff5a4a',
+  unknown: '#ff8a7a',
+  enroute: '#4ea8ff',
+  safe: '#3ee08a',
+  normal: '#3ee08a',
 };

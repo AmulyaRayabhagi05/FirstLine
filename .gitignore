@@ -53,3 +53,6 @@ desktop.ini
 
 # SpacetimeDB identity token saved by the agent worker (also e.g. .spacetime-token.bak)
 .spacetime-token*
+
+# Demo admin login for the web dashboard (holds a staff access key)
+admin.local.json

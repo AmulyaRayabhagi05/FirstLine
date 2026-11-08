@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COMMS, fmtTime, homes } from '../sim/world';
 import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type AgentLine } from '../state/store';
-import { SPACETIME_DB, SPACETIME_HOST } from '../data/live';
+import { SPACETIME_DB, SPACETIME_HOST, clearFlood, markHouseholdSafe, signIn, signOut, startFlood } from '../data/live';
 
 export function Wordmark() {
   return (
@@ -104,6 +104,7 @@ export function Toolbar() {
       </div>
       <button className="panel tbtn" aria-expanded={s.layersOpen} onClick={() => s.setLayersOpen(!s.layersOpen)}>Layers</button>
       <button className="panel tbtn red" onClick={startDemo} aria-pressed={demoOn}>{demoOn ? '■ Stop' : '▶ Tour'}</button>
+      <button className="panel tbtn" onClick={() => { signOut(); s.setSignedIn(false); }} title="Forget this browser's access key">Sign out</button>
       {s.layersOpen && (
         <section className="panel layers" aria-label="Layers and legend">
           <div className="slide">
@@ -117,11 +118,9 @@ export function Toolbar() {
           </div>
           <div className="legend" aria-label="Legend">
             {([
-              ['p1', '!', 'P1 · help now'],
-              ['p2', '◆', 'Silent risk'],
-              ['unknown', '?', 'Not reached'],
-              ['enroute', '→', 'Neighbor en route'],
-              ['safe', '✓', 'Checked in safe'],
+              ['safe', '✓', 'Safe · short green beam'],
+              ['p1', '!', 'Needs help · tall red beam'],
+              ['enroute', '→', 'Help on the way · blue'],
             ] as const).map(([k, g, t]) => (
               <div key={k}><span className="sq" style={{ background: STATUS_COLOR[k] }}>{g}</span>{t}</div>
             ))}
@@ -208,7 +207,42 @@ export function LiveBar() {
           <span>{ago === null ? '—' : `updated ${ago}s ago`}</span>
         </div>
       </div>
+      <FloodControls />
     </section>
+  );
+}
+
+// Demo controls for a flood. They write to the database (one reducer call per person), so each asks first.
+function FloodControls() {
+  const info = useMap((s) => s.liveInfo);
+  const statuses = useMap((s) => s.statuses);
+  const [busy, setBusy] = useState('');
+  const [confirm, setConfirm] = useState<'flood' | 'clear' | null>(null);
+  if (info.state !== 'subscribed' || info.people === 0) return null;
+  const active = statuses.some((s) => s === 'p1' || s === 'p2' || s === 'unknown' || s === 'enroute');
+  const run = async (kind: 'flood' | 'clear') => {
+    setConfirm(null);
+    try {
+      const n = kind === 'flood' ? await startFlood((d, t) => setBusy(`Flooding ${d}/${t}`)) : await clearFlood((d, t) => setBusy(`Marking safe ${d}/${t}`));
+      setBusy(n ? '' : kind === 'flood' ? 'No safe households in the flood zone' : 'Nobody needs help');
+    } catch (e) {
+      setBusy(`Failed: ${(e as Error).message}`);
+    }
+  };
+  if (confirm)
+    return (
+      <div className="lb-actions">
+        <span className="lb-q nc">{confirm === 'flood' ? 'Flood the river zone? Residents there report needing help.' : 'Mark everyone who needs help as safe?'}</span>
+        <button className="btn danger" onClick={() => run(confirm)}>Yes</button>
+        <button className="btn" onClick={() => setConfirm(null)}>Cancel</button>
+      </div>
+    );
+  return (
+    <div className="lb-actions">
+      {busy && <span className="lb-q nc">{busy}</span>}
+      <button className="btn danger" onClick={() => setConfirm('flood')}>Start flood</button>
+      <button className="btn" disabled={!active} onClick={() => setConfirm('clear')}>Clear flood</button>
+    </div>
   );
 }
 
@@ -424,7 +458,22 @@ export function HouseholdCard() {
         <button className="btn danger" onClick={() => act('escalate')}>Escalate<small>P1 · needs approval</small></button>
         <button className="btn" onClick={() => act('claim')}>Claim timeline</button>
         <button className="btn" onClick={() => select(null)}>← City</button>
-        <button className="btn primary" style={{ gridColumn: '1 / -1' }} onClick={() => act('neighbor')}>Send neighbor</button>
+        <button className="btn primary" onClick={() => act('neighbor')}>Send neighbor</button>
+        <button
+          className="btn"
+          disabled={!r.members.some((m) => m.status !== 'safe' && m.status !== 'normal')}
+          onClick={async () => {
+            setNote('Marking safe…');
+            try {
+              await markHouseholdSafe(r);
+              setNote('Marked safe. The beam turns green when the database confirms it.');
+            } catch (e) {
+              setNote(`Could not mark safe: ${(e as Error).message}`);
+            }
+          }}
+        >
+          Mark safe<small>writes to the database</small>
+        </button>
       </div>
       <p className="actnote nc">{note || 'Actions show the flow only. No calls or messages are sent from the dashboard.'}</p>
     </section>
@@ -456,6 +505,64 @@ export function Finale() {
         <div className="tagline">Your neighbors are the first line</div>
         <button className="btn" onClick={() => setFinale(false)}>Back to map</button>
       </div>
+    </div>
+  );
+}
+
+// Small sign-in: access to the system is a staff identity. Paste a staff access key, or ask an admin
+// to grant this browser's ID. Anyone already granted goes straight in.
+export function SignIn() {
+  const info = useMap((s) => s.liveInfo);
+  const signedIn = useMap((s) => s.signedIn);
+  const setSignedIn = useMap((s) => s.setSignedIn);
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [copied, setCopied] = useState(false);
+  const hasAccess = info.state === 'subscribed' && info.people > 0;
+  useEffect(() => {
+    if (hasAccess && !signedIn) setSignedIn(true);
+  }, [hasAccess, signedIn]);
+  if (signedIn) return null;
+  const id = info.identity ? `0x${info.identity}` : '';
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setMsg('Signing in…');
+    const ok = await signIn(key);
+    setBusy(false);
+    setKey('');
+    if (ok) setSignedIn(true);
+    else setMsg(useMap.getState().liveInfo.people === 0 && useMap.getState().liveInfo.identity ? 'That key is not staff, or was not accepted. Check it, or ask an admin to grant it.' : 'That key was not accepted. Check it and try again.');
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="signin" role="dialog" aria-label="Sign in">
+      <form className="panel signbox" onSubmit={submit}>
+        <Wordmark />
+        <div className="label">Operator sign-in</div>
+        <p className="signline nc">Household data is visible to staff only. Sign in with your staff access key.</p>
+        <label className="label" htmlFor="signin-key">Access key</label>
+        <input id="signin-key" className="signinput nc" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Paste your key" />
+        <button className="btn primary" type="submit" disabled={busy || !key.trim()}>Sign in</button>
+        {msg && <p className="signmsg nc">{msg}</p>}
+        <div className="signsep" />
+        <div className="label">No key yet?</div>
+        <p className="signline nc">Ask an admin to grant this browser. It is ready to use as soon as they do.</p>
+        <div className="signid">
+          <code className="nc">{id || (info.state === 'error' ? 'not connected' : 'connecting…')}</code>
+          {id && <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy ID'}</button>}
+        </div>
+        <p className="signline small nc">Admin runs: spacetime call firstline add_staff '"{id || '<this ID>'}"'</p>
+        <button type="button" className="skip" onClick={() => setSignedIn(true)}>Look around without data</button>
+      </form>
     </div>
   );
 }

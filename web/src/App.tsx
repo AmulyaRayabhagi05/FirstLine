@@ -1,18 +1,19 @@
 import { useEffect } from 'react';
 import { CityCanvas } from './scene/CityCanvas';
-import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, IncidentReports, Intro, LiveBar, Toolbar } from './hud/Hud';
+import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, IncidentReports, Intro, LiveBar, SignIn, Toolbar } from './hud/Hud';
 import { Minimap } from './hud/Minimap';
 import { useMap } from './state/store';
 
 export default function App() {
   const selected = useMap((s) => s.selectedId);
   const intro = useMap((s) => s.intro);
+  const signedIn = useMap((s) => s.signedIn);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       const s = useMap.getState();
-      if (s.intro) return;
+      if (s.intro || !s.signedIn) return;
       if (el.tagName === 'INPUT' && (el as HTMLInputElement).type !== 'checkbox' && e.key !== 'Escape') return;
       if (e.key === 't' || e.key === 'T') s.setDim(s.dimTarget < 0.5 ? 1 : 0);
       else if (e.key === ' ') {
@@ -32,7 +33,8 @@ export default function App() {
   return (
     <>
       <CityCanvas />
-      {!intro && (
+      {!intro && !signedIn && <SignIn />}
+      {!intro && signedIn && (
         <div className="hud">
           {selected === null ? <CounterBadge /> : <BackButton />}
           <Toolbar />

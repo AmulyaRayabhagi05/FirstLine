@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { COMMS, DANGER_W, CITY_R, HALF, PARKS, W, homes, river, roads, streets, type Pt } from '../sim/world';
-import { useMap } from '../state/store';
+import { floodActive, useMap } from '../state/store';
 import { GROUND } from './live';
 
 const toPx = (v: number, S: number) => ((v + HALF) / W) * S;
@@ -94,8 +94,8 @@ export function Ground() {
     [],
   );
   useFrame(() => {
-    const { showZone, T } = useMap.getState();
-    zoneEdges.forEach((l) => (l.visible = showZone && T >= 0.45));
+    const { showZone } = useMap.getState();
+    zoneEdges.forEach((l) => (l.visible = showZone && floodActive(useMap.getState().statuses)));
   });
 
   return (
@@ -109,19 +109,19 @@ export function Ground() {
         <meshLambertMaterial map={tex} />
       </mesh>
       <lineSegments geometry={roadGeo}>
-        <lineBasicMaterial color="#4a568f" transparent opacity={0.7} />
+        <lineBasicMaterial color="#47605f" transparent opacity={0.7} />
       </lineSegments>
       <lineSegments geometry={streetGeo}>
-        <lineBasicMaterial color="#3a4578" transparent opacity={0.55} />
+        <lineBasicMaterial color="#2f4446" transparent opacity={0.55} />
       </lineSegments>
       <mesh geometry={riverGeos[0]}>
-        <meshBasicMaterial color="#1e3f86" transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#1d4a5e" transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={riverGeos[1]}>
-        <meshBasicMaterial color="#2a5cc0" transparent opacity={0.85} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#2a7397" transparent opacity={0.85} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={riverGeos[2]}>
-        <meshBasicMaterial color="#8cb8ff" transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#9fd3e6" transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       {zoneEdges.map((l, i) => (
         <primitive key={i} object={l} />

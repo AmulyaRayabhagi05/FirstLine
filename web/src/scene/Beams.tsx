@@ -5,8 +5,10 @@ import { homes, type Status } from '../sim/world';
 import { useMap, STATUS_COLOR } from '../state/store';
 import { live } from './live';
 
-const BEAM_H: Record<Status, number> = { p1: 30, p2: 20, unknown: 11, enroute: 15, safe: 1.6, normal: 0 };
-const DOT_S: Record<Status, number> = { p1: 1.6, p2: 1.3, unknown: 1.0, enroute: 1.1, safe: 0.55, normal: 0 };
+// Every registered household shows a calm green porch beam; trouble makes it tall and red.
+// Homes with no registered household stay dark.
+const BEAM_H: Record<Status, number> = { p1: 28, p2: 24, unknown: 20, enroute: 14, safe: 5.5, normal: 5.5 };
+const DOT_S: Record<Status, number> = { p1: 1.7, p2: 1.5, unknown: 1.35, enroute: 1.2, safe: 0.7, normal: 0.7 };
 const COLORS = Object.fromEntries(Object.entries(STATUS_COLOR).map(([k, v]) => [k, new THREE.Color(v)])) as Record<Status, THREE.Color>;
 const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -63,31 +65,34 @@ export function Beams() {
   }, [version, statuses]);
 
   useFrame(({ clock }) => {
-    const { statuses: st, showBeams } = useMap.getState();
+    const { statuses: st, showBeams, residents } = useMap.getState();
     const dim = live.dim;
     const hs = live.homeScale;
-    const beamA = Math.min(1, Math.max(0, (dim - 0.25) / 0.5));
+    // Beams stay at full strength across the slider; the flat 2D dots take over only at the very end,
+    // so a half-tilted city still shows beams, not green discs on the roofs.
+    const beamA = Math.min(1, Math.max(0, (dim - 0.04) / 0.16));
     coreMat.uniforms.uOpacity.value = 0.95 * beamA;
     haloMat.uniforms.uOpacity.value = 0.32 * beamA;
-    dotMat.opacity = Math.min(1, Math.max(0, 1 - dim * 1.6)) * 0.95;
+    dotMat.opacity = Math.min(1, Math.max(0, 1 - dim / 0.12)) * 0.95;
     cores.current.visible = halos.current.visible = showBeams && beamA > 0;
     dots.current.visible = showBeams && dotMat.opacity > 0;
     const pulse = reduce ? 1 : 0.8 + 0.2 * Math.sin(clock.elapsedTime * 3.8);
     homes.forEach((p, i) => {
       const s = st[i];
       const urgent = s === 'p1' || s === 'p2';
-      const h = BEAM_H[s] * (urgent ? pulse : 1);
+      const occupied = residents[i] != null;
+      const h = occupied ? BEAM_H[s] * (urgent ? pulse : 1) : 0;
       const top = p.top * hs;
       dummy.rotation.set(0, 0, 0);
       dummy.position.set(p.x, top - 0.2 * hs, p.z);
       dummy.scale.set(1, Math.max(0.0001, h), 1);
       dummy.updateMatrix();
       cores.current.setMatrixAt(i, dummy.matrix);
-      const w = s === 'safe' ? 0.5 : 1;
+      const w = s === 'safe' || s === 'normal' ? 0.45 : 1;
       dummy.scale.set(w, Math.max(0.0001, h * 0.85), w);
       dummy.updateMatrix();
       halos.current.setMatrixAt(i, dummy.matrix);
-      const ds = Math.max(0.0001, DOT_S[s] * (urgent ? pulse : 1));
+      const ds = Math.max(0.0001, occupied ? DOT_S[s] * (urgent ? pulse : 1) : 0);
       dummy.position.set(p.x, top + 0.05, p.z);
       dummy.scale.set(ds, 1, ds);
       dummy.updateMatrix();

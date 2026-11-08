@@ -5,5 +5,6 @@ export const live = { dim: 1, homeScale: 1 };
 export const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 export const heightFor = (dim: number) => 0.07 + (1 - 0.07) * easeInOut(dim);
 
-export const HAZE = '#232c55';
-export const GROUND = '#161c38';
+// A calm slate night (no purple neon): reads as a real neighborhood map, not a cyberpunk skyline.
+export const HAZE = '#17232a';
+export const GROUND = '#101a1f';

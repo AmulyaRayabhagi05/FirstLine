@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { DANGER_W, HALF, W, homes, river } from '../sim/world';
-import { useMap } from '../state/store';
+import { floodActive, useMap } from '../state/store';
 import { live } from './live';
 
 const RGB: Record<string, string> = { p1: '255,59,78', p2: '255,154,60', unknown: '244,211,94', enroute: '90,169,255', safe: '79,224,143' };
@@ -25,9 +25,9 @@ export function Heat() {
   const drawn = useRef({ version: -1, zone: true, zoneOn: false, at: 0 });
 
   useFrame(() => {
-    const { version, showZone, statuses, T } = useMap.getState();
+    const { version, showZone, statuses } = useMap.getState();
     mat.current.opacity = 0.45 + (1 - live.dim) * 0.55;
-    const zoneOn = showZone && T >= 0.45;
+    const zoneOn = showZone && floodActive(statuses);
     const d = drawn.current;
     const now = performance.now();
     if ((d.version === version && d.zoneOn === zoneOn) || now - d.at < 110) return;

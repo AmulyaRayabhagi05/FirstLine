@@ -22,8 +22,9 @@ const PINNED_TOKEN = (import.meta.env.VITE_SPACETIME_TOKEN as string | undefined
 const EXPOSURE = new Set(['power_out', 'phone_offline', 'low_temp', 'geofence_entered']);
 /** Worst first: a household shows the most urgent status among its people. */
 const RANK: Status[] = ['p1', 'p2', 'unknown', 'enroute', 'safe', 'normal'];
-/** Farthest a household may sit from its map home, in world units (5 per km). */
-const MAX_PLACE_DIST = 30;
+/** Farthest a household may sit from its map home, in world units (5 per km). Dense neighborhoods
+ * spill onto the nearest free lots, so every registered household gets a home. */
+const MAX_PLACE_DIST = 260;
 
 // localStorage can throw (private windows, blocked storage); the app still works without it.
 function readToken(): string | undefined {
@@ -38,6 +39,13 @@ function writeToken(token: string) {
     localStorage.setItem(TOKEN_KEY, token);
   } catch {
     /* per-viewer convenience only */
+  }
+}
+function clearToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* nothing stored */
   }
 }
 
@@ -280,6 +288,7 @@ function snapshot(conn: DbConnection) {
       helper,
       net,
       log,
+      members: members.map((m) => ({ id: m.id, status: statusOf(m) })),
       reasoning: linesByHome.get(idx) ?? [],
       triage: householdTriage(members.map((m) => latestTriage.get(key(m.id)))),
       assignment: householdAssignment(ids),
@@ -314,16 +323,96 @@ function snapshot(conn: DbConnection) {
   });
 }
 
-export function startLive() {
+let liveConn: DbConnection | null = null;
+
+// ---- actions from the map; each is one reducer call per person and needs a staff identity ----
+
+const needsHelp = (s: Status) => s === 'p1' || s === 'p2' || s === 'unknown';
+
+/** Mark everyone in one household safe (a neighbor or responder confirmed it). */
+export async function markHouseholdSafe(r: Resident) {
+  if (!liveConn) throw new Error('Not connected');
+  for (const m of r.members) if (needsHelp(m.status) || m.status === 'enroute') await liveConn.reducers.markSafe({ personId: m.id, note: 'confirmed safe from the map' });
+}
+
+/** Demo: everyone in the flood zone reports needing help, as phones in a real flood would. */
+export async function startFlood(onProgress?: (done: number, total: number) => void) {
+  if (!liveConn) throw new Error('Not connected');
+  const { residents } = useMap.getState();
+  const targets = homes.flatMap((h) => (h.danger && residents[h.idx] ? residents[h.idx]!.members : [])).filter((m) => !needsHelp(m.status));
+  const stamp = Date.now();
+  let i = 0;
+  for (const m of targets) {
+    await liveConn.reducers.checkIn({ clientId: `flood-${stamp}-${m.id}`, personId: m.id, kind: 'app', result: 'needs_help', note: 'flood demo' });
+    onProgress?.(++i, targets.length);
+  }
+  return targets.length;
+}
+
+/** Demo: clear the flood by marking everyone who still needs help safe. */
+export async function clearFlood(onProgress?: (done: number, total: number) => void) {
+  if (!liveConn) throw new Error('Not connected');
+  const targets = useMap.getState().residents.flatMap((r) => (r ? r.members : [])).filter((m) => needsHelp(m.status) || m.status === 'enroute');
+  let i = 0;
+  for (const m of targets) {
+    await liveConn.reducers.markSafe({ personId: m.id, note: 'flood demo cleared' });
+    onProgress?.(++i, targets.length);
+  }
+  return targets.length;
+}
+
+// ---- sign in / sign out ----
+// Access is the SpacetimeDB identity: a staff identity's access key (its token) sees the ops_* views.
+// Signing in reconnects with that key; signing out forgets it and starts a fresh identity.
+
+function restart(token: string | undefined) {
+  const old = liveConn;
+  liveConn = null;
+  old?.disconnect();
+  placement.clear();
+  taken.clear();
+  useMap.getState().resetLive();
+  if (!token) clearToken(); // a key is saved only once the server accepts it (onConnect)
+  startLive(token);
+}
+
+/** Sign in with a staff access key. Resolves to whether that identity can see the system. */
+export function signIn(accessKey: string): Promise<boolean> {
+  const key = accessKey.trim();
+  if (!key) return Promise.resolve(false);
+  const previous = readToken();
+  restart(key);
+  return new Promise((resolve) => {
+    const unsub = useMap.subscribe((s) => {
+      if (s.liveInfo.state === 'subscribed' || s.liveInfo.state === 'error') {
+        unsub();
+        const rejected = s.liveInfo.state === 'error';
+        // A rejected key leaves this browser on its previous identity.
+        if (rejected) restart(previous);
+        resolve(!rejected && s.liveInfo.people > 0);
+      }
+    });
+  });
+}
+
+/** Forget this browser's access key and connect as a new, unprivileged identity. */
+export function signOut() {
+  restart(undefined);
+}
+
+/** Connects with, in order: the given key, the key this browser signed in with, the build's pinned
+ *  viewer token, or a new identity. */
+export function startLive(token: string | undefined = readToken() ?? PINNED_TOKEN) {
   const st = useMap.getState();
   st.setLiveInfo({ state: 'connecting', message: `Connecting to ${SPACETIME_HOST} / ${SPACETIME_DB}…` });
 
-  DbConnection.builder()
+  const conn0 = DbConnection.builder()
     .withUri(SPACETIME_HOST)
     .withDatabaseName(SPACETIME_DB)
-    .withToken(PINNED_TOKEN ?? readToken())
+    .withToken(token)
     .onConnect((conn, identity, token) => {
-      if (!PINNED_TOKEN) writeToken(token);
+      if (conn !== liveConn) return; // a newer sign-in replaced this connection
+      if (token !== PINNED_TOKEN) writeToken(token); // the public viewer token is never saved over a sign-in
       const hex = identity.toHexString();
       console.info(`[firstline] dashboard identity 0x${hex}`);
       useMap.getState().setLiveInfo({ identity: hex });
@@ -335,7 +424,7 @@ export function startLive() {
         queued = true;
         setTimeout(() => {
           queued = false;
-          snapshot(conn);
+          if (conn === liveConn) snapshot(conn);
         }, 250);
       };
 
@@ -372,9 +461,12 @@ export function startLive() {
           'SELECT * FROM hex_cell',
         ]);
     })
-    .onConnectError((_ctx, err) => useMap.getState().setLiveInfo({ state: 'error', message: `Could not connect to ${SPACETIME_HOST}: ${err.message}` }))
+    .onConnectError((_ctx, err) => {
+      if (liveConn === conn0) useMap.getState().setLiveInfo({ state: 'error', message: `Could not sign in to ${SPACETIME_HOST}: ${err.message}` });
+    })
     .onDisconnect((_ctx, err) => {
-      if (err) useMap.getState().setLiveInfo({ state: 'error', message: `Disconnected: ${err.message}` });
+      if (err && liveConn === conn0) useMap.getState().setLiveInfo({ state: 'error', message: `Disconnected: ${err.message}` });
     })
     .build();
+  liveConn = conn0;
 }

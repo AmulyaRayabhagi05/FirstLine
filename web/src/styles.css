@@ -212,6 +212,20 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
 .reports .muted { color: var(--dim); }
 @media (max-width: 760px) { .reports { display: none; } }
 
+/* sign-in */
+.signin { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; padding-inline: max(var(--gut), env(safe-area-inset-left, 0px)); background: radial-gradient(ellipse at center, rgba(13,13,15,0.45), rgba(13,13,15,0.88)); }
+.signbox { position: static; width: min(380px, 100%); padding: 20px; display: grid; gap: 10px; animation: drop-in 0.4s ease-out both; }
+.signbox .wordmark { font-size: 18px; margin-bottom: 4px; }
+.signline { font-size: 10px; line-height: 1.6; color: var(--muted); margin: 0; }
+.signline.small { font-size: 8px; color: var(--dim); word-break: break-all; }
+.signinput { font: inherit; font-size: 12px; padding: 10px; background: var(--bg); color: var(--cream); border: 2px solid var(--border-light); width: 100%; }
+.signinput:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.signmsg { font-size: 9px; color: var(--unk); margin: 0; }
+.signsep { height: 2px; background: var(--border); margin: 6px 0; }
+.signid { display: flex; gap: 8px; align-items: center; }
+.signid code { flex: 1; min-width: 0; font-size: 9px; color: var(--cream); background: var(--bg); border: 1px solid var(--border); padding: 8px; overflow-wrap: anywhere; }
+.signid .btn { padding: 8px 10px; font-size: 9px; }
+.signbox .skip { justify-self: center; margin-top: 4px; }
 /* Household card: triage, response and the reasoning toggle */
 .card .triage { font-size: 9px; line-height: 1.6; color: var(--warm); margin-top: 6px; display: grid; gap: 3px; }
 .card .triage .conf { color: var(--brand); }

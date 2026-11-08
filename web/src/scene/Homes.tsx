@@ -9,12 +9,12 @@ function windowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#1d2a3a';
+  g.fillStyle = '#26302f';
   g.fillRect(0, 0, 64, 64);
   // dithered wall, like a pixel-art facade
   for (let y = 0; y < 64; y += 2)
     for (let x = ((y / 2) % 2) * 2; x < 64; x += 4) {
-      g.fillStyle = '#22324a';
+      g.fillStyle = '#2c3836';
       g.fillRect(x, y, 2, 2);
     }
   const lit = ['#ffd27a', '#ffc35a', '#ffe3a3'];

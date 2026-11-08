@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { DANGER_W, homes, river, roads, type Pt } from '../sim/world';
-import { useMap, STATUS_COLOR } from '../state/store';
+import { DANGER_W, W, homes, river, roads, type Pt } from '../sim/world';
+import { floodActive, useMap, STATUS_COLOR } from '../state/store';
 
 const SIZE = 196;
-const SPAN = 140; // world units shown
+const SPAN = W; // world units shown: the whole interactive city
 const toM = (v: number) => ((v + SPAN / 2) / SPAN) * SIZE;
 
 function stroke(g: CanvasRenderingContext2D, pl: Pt[]) {
@@ -17,6 +17,7 @@ export function Minimap() {
   const ref = useRef<HTMLCanvasElement>(null);
   const version = useMap((s) => s.version);
   const statuses = useMap((s) => s.statuses);
+  const residents = useMap((s) => s.residents);
   const cam = useMap((s) => s.cam);
   const showZone = useMap((s) => s.showZone);
   const T = useMap((s) => s.T);
@@ -26,15 +27,15 @@ export function Minimap() {
     const c = ref.current;
     if (!c) return;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#121626';
+    g.fillStyle = '#0f1719';
     g.fillRect(0, 0, SIZE, SIZE);
-    if (showZone && T >= 0.45) {
+    if (showZone && floodActive(statuses)) {
       g.strokeStyle = 'rgba(232,40,61,0.22)';
       g.lineWidth = (DANGER_W * 2 * SIZE) / SPAN;
       g.lineCap = 'round';
       stroke(g, river);
     }
-    g.strokeStyle = '#2b3359';
+    g.strokeStyle = '#26363a';
     g.lineWidth = 1;
     roads.forEach((pl) => stroke(g, pl));
     g.strokeStyle = '#2a5cc0';
@@ -42,7 +43,7 @@ export function Minimap() {
     stroke(g, river);
     homes.forEach((p, i) => {
       const s = statuses[i];
-      g.fillStyle = s === 'normal' ? '#3a3f58' : STATUS_COLOR[s];
+      g.fillStyle = residents[i] ? STATUS_COLOR[s] : '#2a3236';
       const r = s === 'p1' || s === 'p2' ? 2 : 1;
       g.fillRect(Math.round(toM(p.x)) - r / 2, Math.round(toM(p.z)) - r / 2, r + 1, r + 1);
     });

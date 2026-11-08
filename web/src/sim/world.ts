@@ -5,9 +5,9 @@
 export type Status = 'p1' | 'p2' | 'unknown' | 'enroute' | 'safe' | 'normal';
 export type Pt = [number, number];
 
-export const W = 140; // size of the detailed city ground, in world units
+export const CITY_R = 110; // radius of the interactive city: room for ~2,300 homes, so 2,000+ households each get one
+export const W = 2 * (CITY_R + 12); // size of the detailed city ground, in world units
 export const HALF = W / 2;
-export const CITY_R = 60; // radius of the interactive city
 export const FAR = 210; // the outer city runs to here, fading into haze
 export const DANGER_W = 13; // flood danger band half-width around the river
 
@@ -108,7 +108,7 @@ export const DALLAS_NEIGHBORHOODS = [
   { name: 'North Oak Cliff', lat: 32.743, lng: -96.835, c: '#e8283d' },
   { name: 'Pleasant Grove', lat: 32.707, lng: -96.695, c: '#62d6e8' },
   { name: 'Lakewood', lat: 32.818, lng: -96.75, c: '#f4d35e' },
-  { name: 'Vickery Meadow', lat: 32.8685, lng: -96.764, c: '#b58cff' },
+  { name: 'Vickery Meadow', lat: 32.8685, lng: -96.764, c: '#c9b27a' },
   { name: 'West Dallas', lat: 32.7805, lng: -96.8725, c: '#ff9a3c' },
 ];
 export const COMMS = DALLAS_NEIGHBORHOODS.map((n) => ({ name: n.name, ...project(n.lat, n.lng), c: n.c }));
@@ -153,10 +153,10 @@ export interface Home {
 export interface OuterHome { x: number; z: number; rot: number; sx: number; sy: number; wall: string; roof: string }
 
 const WALLS = ['#ffffff', '#e9f0ff', '#f2ece0', '#e3f0ea', '#efe6ee', '#dfe6f5'];
-const ROOFS = ['#1d2540', '#22283f', '#1b2a33', '#2a2236', '#252a2f', '#1a2236'];
+const ROOFS = ['#262d2f', '#2d2925', '#1f2b2b', '#2b2d31', '#30302b', '#22292c'];
 
 export const homes: Home[] = [];
-const S = 3.8;
+const S = 3.0;
 for (let gx = -CITY_R; gx <= CITY_R; gx += S)
   for (let gz = -CITY_R; gz <= CITY_R; gz += S) {
     const x = gx + (rnd() - 0.5) * 0.8;

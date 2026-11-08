@@ -2,18 +2,19 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useMap } from '../state/store';
-import { homes, clamp, lerp } from '../sim/world';
+import { CITY_R, homes, clamp, lerp } from '../sim/world';
 import { live, easeInOut } from './live';
 
 type Pose = { theta: number; phi: number; radius: number; tx: number; tz: number };
 const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const phiFor = (d: number) => lerp(0.02, 1.0, d);
-const radiusFor = (d: number) => lerp(128, 96, d);
+// framing scales with the city so the whole neighborhood network fits on screen
+const radiusFor = (d: number) => lerp(128, 96, d) * (CITY_R / 60) * (d < 0.5 ? 1 : 0.85);
 
 // Orbit camera with smooth fly-tos: rotate, pan, zoom, the 2D/3D slide, zoom to a home, and the demo sweep.
 export function CameraRig() {
   const { camera, gl } = useThree();
-  const rig = useRef({ target: new THREE.Vector3(), theta: 0.75, phi: 1.0, radius: 96 });
+  const rig = useRef({ target: new THREE.Vector3(), theta: 0.75, phi: 1.0, radius: 96 * (CITY_R / 60) * 0.85 });
   const anim = useRef<{ f: Pose; t: Pose; t0: number; dur: number } | null>(null);
   const saved = useRef<Pose | null>(null);
   const lastCamPush = useRef(0);
@@ -74,8 +75,8 @@ export function CameraRig() {
       const s = r.radius * 0.0016;
       const c = Math.cos(r.theta);
       const n = Math.sin(r.theta);
-      r.target.x = clamp(r.target.x + (-c * dx - n * dy) * s, -80, 80);
-      r.target.z = clamp(r.target.z + (n * dx - c * dy) * s, -80, 80);
+      r.target.x = clamp(r.target.x + (-c * dx - n * dy) * s, -CITY_R - 20, CITY_R + 20);
+      r.target.z = clamp(r.target.z + (n * dx - c * dy) * s, -CITY_R - 20, CITY_R + 20);
     };
     const down = (e: PointerEvent) => {
       el.setPointerCapture(e.pointerId);
@@ -95,7 +96,7 @@ export function CameraRig() {
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinch) r.radius = clamp((r.radius * pinch) / d, 12, 220);
+        if (pinch) r.radius = clamp((r.radius * pinch) / d, 12, 420);
         pinch = d;
         return;
       }
@@ -112,7 +113,7 @@ export function CameraRig() {
     };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      rig.current.radius = clamp(rig.current.radius * Math.exp(e.deltaY * 0.0011), 12, 220);
+      rig.current.radius = clamp(rig.current.radius * Math.exp(e.deltaY * 0.0011), 12, 420);
       anim.current = null;
       stopDemo();
     };
@@ -164,7 +165,7 @@ export function CameraRig() {
     camera.position.set(r.target.x + r.radius * Math.sin(r.phi) * Math.sin(r.theta), r.radius * Math.cos(r.phi), r.target.z + r.radius * Math.sin(r.phi) * Math.cos(r.theta));
     camera.lookAt(r.target);
     const fog = state.scene.fog as THREE.FogExp2 | null;
-    if (fog) fog.density = 0.0068 * (1 - (1 - live.dim) * 0.85);
+    if (fog) fog.density = 0.0068 * (60 / CITY_R) * (1 - (1 - live.dim) * 0.85);
     const now = performance.now();
     if (now - lastCamPush.current > 120) {
       lastCamPush.current = now;
