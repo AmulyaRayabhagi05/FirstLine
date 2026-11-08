@@ -1,0 +1,422 @@
+// FirstLine protocol pack: official safety guidance the agents retrieve and cite.
+//
+// Every card is paraphrased from a page that was opened and read (Nov 2026); the URL is on the card.
+// Government pages (CDC, FEMA/Ready.gov, NWS, FDA, Texas DSHS) are public domain; Red Cross and
+// State Farm guidance is paraphrased, never copied. Where sources differ, the card says so.
+//
+// Why these topics: in Winter Storm Uri, Texas DSHS confirmed 246 deaths: 158 hypothermia (64.2%),
+// 19 carbon monoxide (7.7%), plus deaths of people on life-sustaining electrical equipment.
+// Frozen and burst pipes were the storm's biggest insurance loss (State Farm alone paid about $343M in Texas).
+
+import type { ProtocolCard } from './types.js';
+
+const S = {
+  cdcHypo: { org: 'CDC', title: 'Preventing Hypothermia', url: 'https://www.cdc.gov/winter-weather/prevention/index.html' },
+  cdcHypoPsa: { org: 'CDC', title: 'Recognizing Hypothermia', url: 'https://www.cdc.gov/natural-disasters/psa-toolkit/recognizing-hypothermia.html' },
+  cdcStorm: { org: 'CDC', title: 'Safety Guidelines: During & After a Winter Storm', url: 'https://www.cdc.gov/winter-weather/safety/stay-safe-during-after-a-winter-storm-safety.html' },
+  cdcCo: { org: 'CDC', title: 'Carbon Monoxide (CO) Poisoning Basics', url: 'https://www.cdc.gov/carbon-monoxide/about/index.html' },
+  cdcGen: { org: 'CDC', title: 'When the Power Goes Out, Keep Your Generator Outside (fact sheet)', url: 'https://www.cdc.gov/carbon-monoxide/media/pdfs/Generators_1.pdf' },
+  cdcOutage: { org: 'CDC', title: 'What to Do to Protect Yourself During a Power Outage', url: 'https://www.cdc.gov/natural-disasters/response/what-to-do-protect-yourself-during-a-power-outage.html' },
+  cdcDialysis: { org: 'CDC', title: 'What to Do When You Need Dialysis During an Emergency', url: 'https://www.cdc.gov/kidney-disease/caring/index.html' },
+  rgWinter: { org: 'FEMA / Ready.gov', title: 'Winter Weather', url: 'https://www.ready.gov/winter-weather' },
+  rgPower: { org: 'FEMA / Ready.gov', title: 'Power Outages', url: 'https://www.ready.gov/power-outages' },
+  rgFlood: { org: 'FEMA / Ready.gov', title: 'Floods', url: 'https://www.ready.gov/floods' },
+  rgSkills: { org: 'FEMA / Ready.gov', title: 'Safety Skills', url: 'https://www.ready.gov/safety-skills' },
+  rgAfn: { org: 'FEMA / Ready.gov', title: 'Individuals with Disabilities and Access and Functional Needs', url: 'https://www.ready.gov/individuals-access-functional-needs' },
+  femaWs: { org: 'FEMA', title: 'Shelter-in-Place Guidance: Winter Storm (Nov 2021)', url: 'https://www.fema.gov/sites/default/files/documents/fema_shelter-in-place_guidance-winterstorm.pdf' },
+  arcHypo: { org: 'American Red Cross', title: 'Hypothermia and Frostbite', url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/winter-storm/hypothermia-and-frostbite.html' },
+  arcPipes: { org: 'American Red Cross', title: 'Preventing & Thawing Frozen Pipes', url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/winter-storm/frozen-pipes.html' },
+  arcGen: { org: 'American Red Cross', title: 'Generator Safety', url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/power-outage/safe-generator-use.html' },
+  arcPower: { org: 'American Red Cross', title: 'Power Outage Safety', url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/power-outage.html' },
+  arcFlood: { org: 'American Red Cross', title: 'Flood Safety', url: 'https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/flood.html' },
+  nws: { org: 'National Weather Service', title: 'Turn Around Don\'t Drown', url: 'https://www.weather.gov/safety/flood-turn-around-dont-drown' },
+  dshs: { org: 'Texas DSHS', title: 'February 2021 Winter Storm-Related Deaths – Texas (Dec 31, 2021)', url: 'https://www.dshs.texas.gov/sites/default/files/news/updates/SMOC_FebWinterStorm_MortalitySurvReport_12-30-21.pdf' },
+  fdaInsulin: { org: 'FDA', title: 'Insulin Storage and Switching Between Products in an Emergency', url: 'https://www.fda.gov/drugs/emergency-preparedness-drugs/information-regarding-insulin-storage-and-switching-between-products-emergency' },
+  fdaDevices: { org: 'FDA', title: 'Tips about Medical Devices and Natural Disasters', url: 'https://www.fda.gov/medical-devices/emergency-situations-medical-devices/fda-offers-tips-about-medical-devices-and-natural-disasters' },
+  tracie: { org: 'HHS ASPR TRACIE', title: 'Planning for Power Outages and Durable Medical Equipment', url: 'https://asprtracie.hhs.gov/documents/aspr-tracie-ta---planned-community-power-outages-and-dme---7-3-19.pdf' },
+  sfPipes: { org: 'State Farm (insurer)', title: 'How To Help Prevent Pipes From Freezing', url: 'https://www.statefarm.com/simple-insights/residence/dont-let-pipes-freeze-and-steps-to-take-if-they-do' },
+  certU3: { org: 'FEMA CERT', title: 'CERT Participant Manual, Unit 3: Disaster Medical Operations (2011)', url: 'https://www.cert-la.com/downloads/manuals/CERT_PM_Unit3_Jan2011.pdf' },
+  certU5: { org: 'FEMA CERT', title: 'CERT Participant Manual, Unit 5: Light Search and Rescue', url: 'https://fire.lacounty.gov/wp-content/uploads/2019/08/Unit5-LightSearchRescueOperations.pdf' },
+  start: { org: 'START triage (reference summary)', title: 'Simple triage and rapid treatment', url: 'https://en.wikipedia.org/wiki/Simple_triage_and_rapid_treatment' },
+  salt: { org: 'EMS1', title: 'How to use SALT to triage MCI patients', url: 'https://www.ems1.com/mass-casualty-incidents-mci/articles/how-to-use-salt-to-triage-mci-patients-ioh8pD88282FDTdy/' },
+  pdx911: { org: 'Portland Bureau of Emergency Communications', title: 'SOP 7.396 Welfare Check', url: 'https://public.powerdms.com/PBEC/documents/1602172' },
+  fr1: { org: 'FireRescue1', title: 'Welfare checks can turn deadly', url: 'https://www.firerescue1.com/safety/dont-let-your-guard-down-welfare-checks-can-turn-deadly' },
+  whoPfa: { org: 'WHO', title: 'Psychological First Aid: Guide for Field Workers (2011)', url: 'https://www.who.int/publications/i/item/9789241548205' },
+};
+
+export const PROTOCOLS: ProtocolCard[] = [
+  // ---------------- carbon monoxide ----------------
+  {
+    id: 'co-symptoms-911',
+    hazard: 'carbon_monoxide',
+    severity: 'life_threat',
+    title: 'Possible carbon monoxide poisoning: get to fresh air, then call 911',
+    text: 'Headache, dizziness, weakness, nausea or vomiting, chest pain or confusion while a generator, grill, car or fuel heater is running nearby can be carbon monoxide poisoning. Get everyone out to fresh air at once and call 911 or Poison Control (1-800-222-1222) from outside. People who are asleep or drunk can die before they feel symptoms.',
+    keywords: ['co', 'monoxide', 'monoxido', 'headache', 'dolor de cabeza', 'dizzy', 'mareado', 'nausea', 'vomit', 'confused', 'sleepy', 'flu-like', 'alarm', 'fresh air', 'aire fresco', 'poison control'],
+    source: S.cdcCo,
+    say: {
+      en: 'If anyone has a headache, feels dizzy or sick near a generator or heater, it can be carbon monoxide. Get outside to fresh air now and call 911.',
+      es: 'Si alguien tiene dolor de cabeza, mareo o náuseas cerca de un generador o calentador, puede ser monóxido de carbono. Salga al aire libre ahora y llame al 911.',
+    },
+  },
+  {
+    id: 'co-generator-outside',
+    hazard: 'carbon_monoxide',
+    severity: 'life_threat',
+    title: 'Generators only outside, at least 20 feet from windows, doors and vents',
+    text: 'Never run a generator inside a home, garage, basement or crawlspace, even with doors or windows open; fans do not prevent carbon monoxide build-up. Run it outdoors at least 20 feet from windows, doors and vents (CDC and Ready.gov both say 20 feet).',
+    keywords: ['generator', 'generador', 'garage', 'garaje', '20 feet', '20 pies', 'vent', 'ventana', 'window', 'exhaust', 'backup power', 'may phat dien'],
+    source: S.cdcGen,
+    say: {
+      en: 'Because of carbon monoxide, keep any generator outside, at least 20 feet from windows and doors, never in the garage. That guidance is from the CDC.',
+      es: 'Por el monóxido de carbono, mantenga el generador afuera, a por lo menos 20 pies de puertas y ventanas, nunca en el garaje. Es la recomendación de los CDC.',
+    },
+  },
+  {
+    id: 'co-no-indoor-burning',
+    hazard: 'carbon_monoxide',
+    severity: 'life_threat',
+    title: 'Never heat with a grill, camp stove, oven or stovetop',
+    text: 'Do not use a grill, charcoal, camp stove, or a gas oven or stovetop to heat or cook indoors. Never leave a car running in an attached garage, even with the door open.',
+    keywords: ['grill', 'parrilla', 'charcoal', 'carbon', 'oven', 'horno', 'stove', 'estufa', 'stovetop', 'heat the house', 'calentar la casa', 'car running', 'carro prendido'],
+    source: S.rgPower,
+    say: {
+      en: 'Do not use a grill, oven or stove to heat your home. It can fill the house with carbon monoxide.',
+      es: 'No use la parrilla, el horno ni la estufa para calentar la casa. Puede llenar la casa de monóxido de carbono.',
+    },
+  },
+  {
+    id: 'co-risk-groups',
+    hazard: 'carbon_monoxide',
+    severity: 'urgent',
+    title: 'Who is most at risk from carbon monoxide',
+    text: 'Infants, older adults, and people with heart disease, anemia or breathing problems are at higher risk from carbon monoxide.',
+    keywords: ['infant', 'bebe', 'older', 'anciano', 'heart disease', 'anemia', 'breathing problems', 'asthma', 'copd'],
+    source: S.cdcCo,
+  },
+  {
+    id: 'co-car-stranded',
+    hazard: 'carbon_monoxide',
+    severity: 'urgent',
+    title: 'Stuck in a car in the cold',
+    text: 'If stranded in a car, keep the exhaust pipe clear of snow, run the engine only about 10 minutes an hour, and keep one window slightly open.',
+    keywords: ['car', 'carro', 'stranded', 'stuck', 'atrapado', 'exhaust', 'snow', 'nieve', 'engine'],
+    source: S.cdcStorm,
+  },
+  {
+    id: 'co-alarms-backfeed',
+    hazard: 'carbon_monoxide',
+    severity: 'advice',
+    title: 'CO alarms and safe generator hookup',
+    text: 'Use battery or battery-backup CO alarms near sleeping areas and on every level. Plug appliances straight into the generator or use heavy-duty outdoor cords; never plug a generator into a wall outlet, which can electrocute utility workers and neighbors. Turn it off and let it cool before refueling.',
+    keywords: ['co alarm', 'detector', 'alarma', 'backfeed', 'wall outlet', 'extension cord', 'refuel', 'gasolina'],
+    source: S.arcGen,
+  },
+  {
+    id: 'co-uri-stat',
+    hazard: 'carbon_monoxide',
+    severity: 'advice',
+    title: 'Why it matters: carbon monoxide in Winter Storm Uri',
+    text: 'Texas DSHS confirmed 19 carbon monoxide deaths (7.7% of 246) in the February 2021 storm, from generators, grills, heaters, vehicles in enclosed spaces and ice blocking heater vents.',
+    keywords: ['uri', 'texas', '2021', 'deaths', 'statistic'],
+    source: S.dshs,
+  },
+
+  // ---------------- hypothermia and cold ----------------
+  {
+    id: 'hypo-emergency-signs',
+    hazard: 'hypothermia',
+    severity: 'life_threat',
+    title: 'Hypothermia is an emergency: confusion, slurred speech, below 95°F',
+    text: 'Warning signs in adults: shivering, exhaustion, confusion, fumbling hands, memory loss, slurred speech, drowsiness. A body temperature below 95°F is an emergency: get medical help immediately. If the person is unresponsive or has no pulse or breathing, call 911 and start CPR, and keep warming them.',
+    keywords: ['hypothermia', 'hipotermia', 'confused', 'confundido', 'slurred', 'drowsy', 'somnoliento', 'shivering', 'temblando', 'memory loss', '95', 'cpr', 'unresponsive', 'no responde', 'cold', 'frio'],
+    source: S.cdcHypo,
+    say: {
+      en: 'If someone is confused, very sleepy or slurring words in the cold, that is hypothermia. Call 911 now and warm the center of the body first.',
+      es: 'Si alguien está confundido, muy somnoliento o habla arrastrando las palabras por el frío, es hipotermia. Llame al 911 ahora y caliente primero el pecho y el cuerpo.',
+    },
+  },
+  {
+    id: 'hypo-infants',
+    hazard: 'hypothermia',
+    severity: 'life_threat',
+    title: 'Babies in a cold home',
+    text: 'In infants, hypothermia shows as bright red, cold skin and very low energy. Babies under 1 should never sleep in a cold room; remove soft bedding, use footed pajamas or a sleep sack, and leave for a warm place if the home cannot be kept warm.',
+    keywords: ['baby', 'bebe', 'infant', 'newborn', 'red skin', 'piel roja', 'crib', 'cuna', 'sleep sack'],
+    source: S.cdcHypoPsa,
+  },
+  {
+    id: 'hypo-warm-core',
+    hazard: 'hypothermia',
+    severity: 'urgent',
+    title: 'How to warm someone safely',
+    text: 'Call 911 first, then move the person somewhere warm. Remove wet clothing and warm the center of the body first (chest, neck, head, groin) with an electric blanket or skin-to-skin contact under dry layers. Warm slowly: no hot baths; wrap any heat pack in a towel. Warm drinks only if fully awake, never alcohol.',
+    keywords: ['warm', 'calentar', 'blanket', 'cobija', 'wet clothes', 'ropa mojada', 'skin to skin', 'core', 'chest', 'pecho', 'warm drink'],
+    source: S.arcHypo,
+  },
+  {
+    id: 'hypo-frostbite',
+    hazard: 'hypothermia',
+    severity: 'urgent',
+    title: 'Frostbite',
+    text: 'Numb, white, grayish-yellow, firm or waxy skin on the face, fingers or toes is frostbite. Move to warmth, soak in warm (not hot) water, never rub it, and do not use a heating pad, heat lamp, stove or fireplace on it. Get medical care.',
+    keywords: ['frostbite', 'congelacion', 'numb', 'entumecido', 'fingers', 'dedos', 'toes', 'white skin', 'waxy'],
+    source: S.cdcHypo,
+  },
+  {
+    id: 'hypo-older-adults',
+    hazard: 'hypothermia',
+    severity: 'urgent',
+    title: 'Older neighbors lose heat faster: check on them',
+    text: 'Older adults make less body heat and are at highest risk, along with babies in cold rooms and people without heat. Check on older neighbors; people over 65 should check their indoor temperature often. In Uri, 107 of 158 hypothermia deaths were people 60 or older.',
+    keywords: ['older', 'elderly', 'anciano', 'senior', '65', 'alone', 'solo', 'check on', 'no heat', 'sin calefaccion', 'power out', 'sin luz'],
+    source: S.cdcStorm,
+    say: {
+      en: 'If your home is getting cold and you cannot warm it, go to a warming center. We can help you get there.',
+      es: 'Si su casa se está enfriando y no puede calentarla, vaya a un centro de calentamiento. Le podemos ayudar a llegar.',
+    },
+  },
+  {
+    id: 'hypo-space-heater',
+    hazard: 'hypothermia',
+    severity: 'advice',
+    title: 'Space heaters',
+    text: 'Keep space heaters at least 3 feet from drapes, bedding and furniture, never cover them, and do not plug them into extension cords. Fire killed 10 people in Uri, some from heaters placed too close to things that burn.',
+    keywords: ['space heater', 'calentador', 'heater', 'fire', 'fuego', '3 feet', 'extension cord'],
+    source: S.cdcStorm,
+  },
+
+  // ---------------- water main / frozen and burst pipes ----------------
+  {
+    id: 'water-main-shutoff',
+    hazard: 'water_main',
+    severity: 'urgent',
+    title: 'Burst pipe: shut off the main water valve now',
+    text: 'If a pipe bursts, shut off the main water valve right away and leave the faucets open. Use the house valve where the main line enters the home, not the street valve, which is hard to turn and needs a special tool. Everyone in the home should know where it is.',
+    keywords: ['burst', 'reventado', 'revento', 'reviento', 'pipe', 'tuberia', 'cano', 'water main', 'llave de paso', 'shutoff', 'valve', 'valvula', 'flooding inside', 'water everywhere', 'agua por todos lados', 'leak', 'fuga', 'ceiling', 'techo gotea', 'kitchen', 'cocina'],
+    source: S.rgSkills,
+    say: {
+      en: 'If a pipe bursts, turn off the main water valve where the water line enters your home, and stay away from water near outlets.',
+      es: 'Si se revienta una tubería, cierre la llave de paso principal donde entra el agua a la casa, y aléjese del agua cerca de los enchufes.',
+    },
+  },
+  {
+    id: 'water-electric-hazard',
+    hazard: 'water_main',
+    severity: 'life_threat',
+    title: 'Water and electricity',
+    text: 'Do not use a hair dryer or other electric heat while standing in or near water. If outlets, circuits or equipment got wet, turn off power at the main breaker only if you can reach it without standing in water.',
+    keywords: ['electric', 'electricidad', 'outlet', 'enchufe', 'breaker', 'shock', 'standing water', 'agua estancada', 'wet'],
+    source: S.fdaDevices,
+  },
+  {
+    id: 'water-thaw-no-flame',
+    hazard: 'water_main',
+    severity: 'life_threat',
+    title: 'Never thaw pipes with a flame',
+    text: 'Never thaw a pipe with a blowtorch, open flame, kerosene or propane heater, or charcoal stove. A hair dryer is the safe option every source agrees on (Red Cross also allows a wrapped heating pad or hot towels). Call a licensed plumber if you cannot find or thaw the frozen section.',
+    keywords: ['thaw', 'descongelar', 'torch', 'soplete', 'flame', 'llama', 'propane', 'hair dryer', 'secadora', 'plumber', 'plomero'],
+    source: S.arcPipes,
+  },
+  {
+    id: 'water-frozen-signs',
+    hazard: 'water_main',
+    severity: 'advice',
+    title: 'Signs of a frozen pipe and how to prevent bursts',
+    text: 'Only a trickle from a faucet suggests a frozen pipe; keep that faucet open while thawing. To prevent bursts: let faucets on exposed pipes drip, open sink cabinet doors, and keep the thermostat the same day and night, no lower than 55°F.',
+    keywords: ['frozen pipe', 'tuberia congelada', 'trickle', 'drip', 'gotear', 'cabinet', 'gabinete', 'thermostat', '55'],
+    source: S.arcPipes,
+  },
+  {
+    id: 'water-insurer-tips',
+    hazard: 'water_main',
+    severity: 'advice',
+    title: 'Insurer guidance on frozen pipes',
+    text: 'State Farm advises insulating pipes in crawl spaces and attics, letting water drip overnight, keeping the heat at 55°F or higher, and after a burst shutting the main and leaving faucets open; draining the system may disable fire sprinklers.',
+    keywords: ['insurance', 'seguro', 'claim', 'reclamo', 'state farm', 'insulate', 'heat tape', 'sprinkler'],
+    source: S.sfPipes,
+  },
+
+  // ---------------- flood ----------------
+  {
+    id: 'flood-turn-around',
+    hazard: 'flood',
+    severity: 'life_threat',
+    title: 'Turn around, don\'t drown',
+    text: 'Never walk, swim or drive through floodwater. Six inches of fast water can knock an adult down, 12 inches can carry away most cars and 2 feet can carry away SUVs and trucks. Over half of flood drownings happen in vehicles.',
+    keywords: ['flood', 'inundacion', 'water rising', 'agua subiendo', 'drive', 'manejar', 'car', 'carro', 'road', 'calle', 'current', 'corriente', 'swept', 'arrastrado'],
+    source: S.nws,
+    say: {
+      en: 'Do not walk or drive through floodwater. Six inches of moving water can knock you down.',
+      es: 'No camine ni maneje por agua de inundación. Quince centímetros de agua en movimiento pueden tumbarle.',
+    },
+  },
+  {
+    id: 'flood-trapped-high',
+    hazard: 'flood',
+    severity: 'life_threat',
+    title: 'Trapped by rising water: go up, not into the attic',
+    text: 'If water is entering the home, move to the highest level. Do not climb into a closed attic, where you can be trapped; go onto the roof only if necessary and signal for help. Evacuate at once when officials say so.',
+    keywords: ['trapped', 'atrapado', 'water coming in', 'agua entrando', 'attic', 'atico', 'roof', 'techo', 'higher ground', 'second floor', 'evacuate', 'evacuar'],
+    source: S.rgFlood,
+    say: {
+      en: 'If water is coming in, go to the highest floor, not a closed attic, and call 911.',
+      es: 'Si está entrando agua, suba al piso más alto, no a un ático cerrado, y llame al 911.',
+    },
+  },
+  {
+    id: 'flood-power-lines',
+    hazard: 'flood',
+    severity: 'life_threat',
+    title: 'Live power lines can electrify water',
+    text: 'Do not touch electrical equipment that is wet or while standing in water; downed lines can charge floodwater. Stay at least 35 feet from fallen power lines and call 911.',
+    keywords: ['power line', 'cable', 'downed line', 'electrocut', '35 feet', 'wet electrical'],
+    source: S.arcPower,
+  },
+  {
+    id: 'flood-cannot-walk',
+    hazard: 'flood',
+    severity: 'urgent',
+    title: 'Neighbors who cannot walk',
+    text: 'People who cannot walk need a planned way out: accessible transport through local emergency management, and neighbors who can help them leave the building. A light manual wheelchair is a backup when a power chair fails; helpers should know how to work the chair.',
+    keywords: ['cannot walk', 'no puede caminar', 'wheelchair', 'silla de ruedas', 'bedridden', 'mobility', 'movilidad', 'carry'],
+    source: S.rgAfn,
+  },
+  {
+    id: 'flood-warning-vs-watch',
+    hazard: 'flood',
+    severity: 'urgent',
+    title: 'Flash flood warning means act now',
+    text: 'A flash flood warning means flooding is happening or about to; move to higher ground immediately. A watch means flooding is possible. Stay off bridges over fast-moving water.',
+    keywords: ['warning', 'alerta', 'watch', 'vigilancia', 'flash flood', 'bridge', 'puente'],
+    source: S.arcFlood,
+  },
+
+  // ---------------- powered medical devices and medication ----------------
+  {
+    id: 'device-power-lost',
+    hazard: 'powered_device',
+    severity: 'life_threat',
+    title: 'Oxygen, ventilator or dialysis without power',
+    text: 'People on oxygen concentrators, ventilators, suction, home dialysis or power wheelchairs are at high risk when power is out; respiratory emergency calls rose nearly 200% in the 2003 NYC blackout. If a device is losing power, move the person to a place with power (hospital, warming center, charging station) or call 911.',
+    keywords: ['oxygen', 'oxigeno', 'concentrator', 'ventilator', 'dialysis', 'dialisis', 'battery', 'bateria', 'power out', 'sin luz', 'cpap', 'device', 'equipo'],
+    source: S.tracie,
+    say: {
+      en: 'If you use oxygen or another medical device that needs power and it is running low, tell us now. We will get you to power or send help.',
+      es: 'Si usa oxígeno u otro equipo médico que necesita electricidad y se está quedando sin energía, díganos ahora. Le llevaremos a un lugar con electricidad o enviaremos ayuda.',
+    },
+  },
+  {
+    id: 'device-safe-use',
+    hazard: 'powered_device',
+    severity: 'urgent',
+    title: 'Running devices safely during an outage',
+    text: 'Check whether the device runs on batteries or a generator and keep spare batteries charged; the generator still stays outside. Use battery flashlights, never candles, near oxygen. Do not plug in a device or cord that got wet, and check settings after power returns.',
+    keywords: ['battery', 'bateria', 'generator', 'candle', 'vela', 'oxygen', 'wet', 'settings'],
+    source: S.fdaDevices,
+  },
+  {
+    id: 'device-priority-list',
+    hazard: 'powered_device',
+    severity: 'advice',
+    title: 'Get on the priority restoration list',
+    text: 'Households with powered medical devices should tell their electric company and fire department and ask to be on the priority restoration list, and keep backup oxygen.',
+    keywords: ['priority list', 'utility', 'electric company', 'oncor', 'register', 'backup oxygen'],
+    source: S.rgAfn,
+  },
+  {
+    id: 'insulin-no-fridge',
+    hazard: 'powered_device',
+    severity: 'urgent',
+    title: 'Insulin without refrigeration: do not throw it out',
+    text: 'Insulin in use or unopened can be kept at 59–86°F for up to 28 days (some products differ). Never use insulin that froze; keep it out of heat and sun. If it got warmer than 86°F and nothing else is available, use it, check blood sugar closely and replace it soon. Unlike other refrigerated medicines, it is not discarded after a day without power.',
+    keywords: ['insulin', 'insulina', 'diabetes', 'diabetic', 'fridge', 'refrigerador', 'refrigerate', 'medicine', 'medicina', 'blood sugar', 'azucar'],
+    source: S.fdaInsulin,
+  },
+  {
+    id: 'dialysis-plan',
+    hazard: 'powered_device',
+    severity: 'urgent',
+    title: 'Dialysis during an emergency',
+    text: 'Know more than one dialysis center. Home dialysis patients may switch to manual exchanges until power returns, follow the 3-day emergency diet, and can call the Kidney Community Emergency Response line, 1-866-901-3773.',
+    keywords: ['dialysis', 'dialisis', 'kidney', 'rinon', 'missed treatment', 'kcer'],
+    source: S.cdcDialysis,
+  },
+  {
+    id: 'device-leave-home',
+    hazard: 'powered_device',
+    severity: 'urgent',
+    title: 'Leave if the home is too cold or devices need power',
+    text: 'Leave or evacuate if the home is too hot or too cold, or if someone relies on medical devices that need power. Warming centers and charging stations are often open.',
+    keywords: ['warming center', 'centro de calentamiento', 'leave', 'salir', 'evacuate', 'charging station', 'shelter', 'refugio'],
+    source: S.arcPower,
+  },
+
+  // ---------------- responder rules ----------------
+  {
+    id: 'resp-safety-first',
+    hazard: 'responder',
+    severity: 'life_threat',
+    title: 'Helper safety first: never send a neighbor into water, gas or a damaged building',
+    text: 'Priorities are helper safety, then victims\' lives, then environment, then property. Volunteers never enter rising or moving water, gas leaks, smoke, or a tilting or collapsed building; their job there is to warn people, keep others back and call 911.',
+    keywords: ['volunteer', 'voluntario', 'helper', 'neighbor', 'rescue', 'rescate', 'enter', 'gas leak', 'fuga de gas', 'collapse', 'smoke', 'unsafe'],
+    source: S.certU5,
+  },
+  {
+    id: 'resp-three-killers',
+    hazard: 'responder',
+    severity: 'life_threat',
+    title: 'Immediate (red): airway, bleeding, shock',
+    text: 'Treat or escalate first anyone with a blocked airway, heavy bleeding or signs of shock: breathing over 30 a minute, no radial pulse or slow capillary refill, or unable to follow a simple command like "squeeze my hand". These are Immediate; walking wounded are Minor.',
+    keywords: ['not breathing', 'no respira', 'bleeding', 'sangrado', 'shock', 'unconscious', 'inconsciente', 'pulse', 'pulso', 'squeeze my hand', 'immediate', 'triage'],
+    source: S.certU3,
+  },
+  {
+    id: 'resp-silent-first',
+    hazard: 'responder',
+    severity: 'urgent',
+    title: 'Check the silent before the ones calling out',
+    text: 'SALT triage assesses people who are still first, then those waving, then those walking. A high-risk person who cannot be reached (older, alone, disabled, on a powered device, a baby in an unheated home) gets a welfare check ahead of people who can ask for help.',
+    keywords: ['silent', 'no contact', 'no answer', 'sin respuesta', 'unreachable', 'welfare check', 'alone', 'vive solo'],
+    source: S.salt,
+  },
+  {
+    id: 'resp-welfare-check',
+    hazard: 'responder',
+    severity: 'urgent',
+    title: 'Welfare checks: no forced entry by volunteers',
+    text: 'Collect last contact, why they might be unreachable, access information and risk factors. Look for outside warning signs. Volunteers report what they see from outside and call 911; forced entry is for professionals with a confirmed threat, such as someone seen on the floor.',
+    keywords: ['welfare', 'check on', 'door', 'puerta', 'locked', 'cerrado', 'key', 'llave', 'forced entry', 'window', 'mail piling'],
+    source: S.fr1,
+  },
+  {
+    id: 'resp-no-self-dispatch',
+    hazard: 'responder',
+    severity: 'advice',
+    title: 'One coordinator, assigned tasks, check in and out',
+    text: 'Every helper reports to one coordinator, takes an assigned task before going anywhere, and checks in and out. Keep 3 to 7 helpers per coordinator. Document what you find and hand it to responders.',
+    keywords: ['coordinator', 'assignment', 'asignacion', 'dispatch', 'self-dispatch', 'check in', 'span of control'],
+    source: S.certU5,
+  },
+  {
+    id: 'resp-pfa-calls',
+    hazard: 'responder',
+    severity: 'advice',
+    title: 'On the phone: calm, ask, link; never promise',
+    text: 'Introduce yourself and the organization, ask what they need, speak calmly, and give only information you know with where it came from. Never say help is coming unless it is confirmed. People too distressed to care for themselves, or at risk of self-harm, need more help now.',
+    keywords: ['call', 'llamada', 'phone', 'calm', 'calma', 'distress', 'scared', 'asustado', 'promise', 'reassure'],
+    source: S.whoPfa,
+  },
+];
+
+/**
+ * How trained responders decide who goes first, condensed for an agent's instructions.
+ * Sources: FEMA CERT manual units 3 and 5, START/SALT triage, a 911 welfare-check SOP, WHO Psychological First Aid.
+ */
+export const RESPONDER_RULES = `Responder rules (FEMA CERT, START/SALT triage, 911 welfare-check practice, WHO Psychological First Aid):
+0. Helper safety first. Never send a volunteer into rising or moving water, gas, smoke or a damaged building; they warn others and call 911 [resp-safety-first].
+1. Immediate life threats go to professionals (P1): not breathing or unresponsive, breathing over 30 a minute, heavy bleeding, cannot follow commands, signs of shock, hypothermia with confusion or below 95°F [hypo-emergency-signs], suspected carbon monoxide [co-symptoms-911], trapped by rising water [flood-trapped-high], a powered medical device without power [device-power-lost].
+2. Silent high-risk people next (P2): unreachable and unusual for them, plus 65+, living alone, disability, powered device, or a baby in an unheated home. Check the silent before the ones calling out [resp-silent-first]. Welfare check by a neighbor from outside; no forced entry [resp-welfare-check].
+3. At-risk but responding (P2/P3): no heat or power with early signs (shivering), a generator or stove used indoors, medicine that needs cold, limited mobility, language barrier. Send an assigned neighbor or link to a warming center.
+4. Basic needs and supplies (P3), then property last (burst pipe: shut the water main [water-main-shutoff]).
+Re-triage when anything changes. Never tell anyone help is coming unless it is confirmed [resp-pfa-calls].`;

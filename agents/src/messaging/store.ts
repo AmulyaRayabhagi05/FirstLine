@@ -41,6 +41,10 @@ export interface ChannelPerson {
   language: string;
   lastLat: number;
   lastLng: number;
+  /** Optional profile fields; the check-in call uses them to choose which cited safety lines to read. */
+  age?: number;
+  poweredDevice?: boolean;
+  medicalNeeds?: string;
 }
 
 export interface ChannelStore {

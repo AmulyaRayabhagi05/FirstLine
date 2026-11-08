@@ -162,3 +162,16 @@ Hypertables `readings(time, person_id, h3_cell, kind, value)`,
 `contact_events(time, person_id, h3_cell, channel, result)`. Continuous aggregates `cell_5m`,
 `person_last_contact`. SQL tools: `at_risk_now`, `cell_trend(h3_cell, hours)`,
 `person_timeline(person_id)`. Connection string in `agents/.env` as `TIGER_DATABASE_URL`.
+
+## Safety guidance (knowledge harness, `agents/src/knowledge/`)
+
+Read-only protocol cards (CDC, FEMA/Ready.gov, Red Cross, NWS, FDA, Texas DSHS, FEMA CERT) that the
+agents retrieve; nothing writes to them at runtime. Each card has a stable `id`.
+- Triage calls the `lookup_protocol` tool and cites card ids in brackets inside `triage.reason`,
+  e.g. `Generator in garage and headache: possible carbon monoxide [co-symptoms-911]`. The
+  `save_triage` schema is unchanged; citations live in the reason string.
+- The rules fallback also appends cited ids, and treats fuel source + CO symptoms, and confusion in
+  the cold, as P1.
+- Check-in calls read 1-2 cited lines chosen for the person (`spokenGuidance`).
+- Optional dense retrieval: `EMBED_BASE_URL`, `EMBED_MODEL`, `EMBED_API_KEY` in `agents/.env`
+  (NVIDIA embedding model on an OpenAI-compatible `/embeddings`). Without them, keyword search only.
