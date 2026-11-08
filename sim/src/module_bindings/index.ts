@@ -35,6 +35,7 @@ import {
 
 // Import all reducer arg schemas
 import AcceptAssignmentReducer from "./accept_assignment_reducer";
+import AddStaffReducer from "./add_staff_reducer";
 import AssignHelperReducer from "./assign_helper_reducer";
 import CheckInReducerReducer from "./check_in_reducer_reducer";
 import DeclineAssignmentReducer from "./decline_assignment_reducer";
@@ -46,6 +47,7 @@ import MarkSafeReducer from "./mark_safe_reducer";
 import PressSosReducer from "./press_sos_reducer";
 import RecountNowReducer from "./recount_now_reducer";
 import RegisterPersonReducer from "./register_person_reducer";
+import RemoveStaffReducer from "./remove_staff_reducer";
 import ReportSignalReducer from "./report_signal_reducer";
 import RevokeKeyPassReducer from "./revoke_key_pass_reducer";
 import SaveIncidentReportReducer from "./save_incident_report_reducer";
@@ -60,96 +62,30 @@ import SetWorkerIdentityReducer from "./set_worker_identity_reducer";
 // Import all procedure arg schemas
 
 // Import all table schema definitions
-import AgentStepRow from "./agent_step_table";
-import AssignmentRow from "./assignment_table";
-import AuditLogRow from "./audit_log_table";
-import CheckInRow from "./check_in_table";
-import ConfigRow from "./config_table";
 import HexCellRow from "./hex_cell_table";
-import HouseholdRow from "./household_table";
-import IncidentReportRow from "./incident_report_table";
-import KeyPassRow from "./key_pass_table";
-import PersonRow from "./person_table";
-import SafetyNetRow from "./safety_net_table";
-import SignalRow from "./signal_table";
-import SosEventRow from "./sos_event_table";
-import TriageRow from "./triage_table";
+import MyAssignmentRow from "./my_assignment_table";
+import MyHouseholdRow from "./my_household_table";
+import MyKeyPassRow from "./my_key_pass_table";
+import MyPersonRow from "./my_person_table";
+import MySafetyNetRow from "./my_safety_net_table";
+import MySosEventRow from "./my_sos_event_table";
+import OpsAgentStepRow from "./ops_agent_step_table";
+import OpsAssignmentRow from "./ops_assignment_table";
+import OpsAuditLogRow from "./ops_audit_log_table";
+import OpsCheckInRow from "./ops_check_in_table";
+import OpsHouseholdRow from "./ops_household_table";
+import OpsIncidentReportRow from "./ops_incident_report_table";
+import OpsKeyPassRow from "./ops_key_pass_table";
+import OpsPersonRow from "./ops_person_table";
+import OpsSafetyNetRow from "./ops_safety_net_table";
+import OpsSignalRow from "./ops_signal_table";
+import OpsSosEventRow from "./ops_sos_event_table";
+import OpsTriageRow from "./ops_triage_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
-  agentStep: __table({
-    name: 'agent_step',
-    indexes: [
-      { accessor: 'id', name: 'agent_step_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'subject', name: 'agent_step_subject_idx_btree', algorithm: 'btree', columns: [
-        'subject',
-      ] },
-    ],
-    constraints: [
-      { name: 'agent_step_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, AgentStepRow),
-  assignment: __table({
-    name: 'assignment',
-    indexes: [
-      { accessor: 'helper_id', name: 'assignment_helper_id_idx_btree', algorithm: 'btree', columns: [
-        'helperId',
-      ] },
-      { accessor: 'id', name: 'assignment_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'sos_id', name: 'assignment_sos_id_idx_btree', algorithm: 'btree', columns: [
-        'sosId',
-      ] },
-    ],
-    constraints: [
-      { name: 'assignment_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, AssignmentRow),
-  auditLog: __table({
-    name: 'audit_log',
-    indexes: [
-      { accessor: 'id', name: 'audit_log_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'audit_log_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, AuditLogRow),
-  checkIn: __table({
-    name: 'check_in',
-    indexes: [
-      { accessor: 'client_id', name: 'check_in_client_id_idx_btree', algorithm: 'btree', columns: [
-        'clientId',
-      ] },
-      { accessor: 'id', name: 'check_in_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'person_id', name: 'check_in_person_id_idx_btree', algorithm: 'btree', columns: [
-        'personId',
-      ] },
-    ],
-    constraints: [
-      { name: 'check_in_client_id_key', constraint: 'unique', columns: ['clientId'] },
-      { name: 'check_in_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, CheckInRow),
-  config: __table({
-    name: 'config',
-    indexes: [
-      { accessor: 'id', name: 'config_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'config_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, ConfigRow),
   hexCell: __table({
     name: 'hex_cell',
     indexes: [
@@ -161,136 +97,138 @@ const tablesSchema = __schema({
       { name: 'hex_cell_h3_cell_key', constraint: 'unique', columns: ['h3Cell'] },
     ],
   }, HexCellRow),
-  household: __table({
-    name: 'household',
+  myAssignment: __table({
+    name: 'my_assignment',
     indexes: [
-      { accessor: 'h3_cell', name: 'household_h3_cell_idx_btree', algorithm: 'btree', columns: [
-        'h3Cell',
-      ] },
-      { accessor: 'id', name: 'household_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
     ],
     constraints: [
-      { name: 'household_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, HouseholdRow),
-  incidentReport: __table({
-    name: 'incident_report',
+  }, MyAssignmentRow),
+  myHousehold: __table({
+    name: 'my_household',
     indexes: [
-      { accessor: 'h3_cell', name: 'incident_report_h3_cell_idx_btree', algorithm: 'btree', columns: [
-        'h3Cell',
-      ] },
-      { accessor: 'id', name: 'incident_report_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
     ],
     constraints: [
-      { name: 'incident_report_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, IncidentReportRow),
-  keyPass: __table({
-    name: 'key_pass',
+  }, MyHouseholdRow),
+  myKeyPass: __table({
+    name: 'my_key_pass',
     indexes: [
-      { accessor: 'household_id', name: 'key_pass_household_id_idx_btree', algorithm: 'btree', columns: [
-        'householdId',
-      ] },
-      { accessor: 'id', name: 'key_pass_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
     ],
     constraints: [
-      { name: 'key_pass_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, KeyPassRow),
-  person: __table({
-    name: 'person',
+  }, MyKeyPassRow),
+  myPerson: __table({
+    name: 'my_person',
     indexes: [
-      { accessor: 'h3_cell', name: 'person_h3_cell_idx_btree', algorithm: 'btree', columns: [
-        'h3Cell',
-      ] },
-      { accessor: 'household_id', name: 'person_household_id_idx_btree', algorithm: 'btree', columns: [
-        'householdId',
-      ] },
-      { accessor: 'id', name: 'person_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
     ],
     constraints: [
-      { name: 'person_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, PersonRow),
-  safetyNet: __table({
-    name: 'safety_net',
+  }, MyPersonRow),
+  mySafetyNet: __table({
+    name: 'my_safety_net',
     indexes: [
-      { accessor: 'id', name: 'safety_net_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'member_id', name: 'safety_net_member_id_idx_btree', algorithm: 'btree', columns: [
-        'memberId',
-      ] },
-      { accessor: 'owner_id', name: 'safety_net_owner_id_idx_btree', algorithm: 'btree', columns: [
-        'ownerId',
-      ] },
     ],
     constraints: [
-      { name: 'safety_net_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, SafetyNetRow),
-  signal: __table({
-    name: 'signal',
+  }, MySafetyNetRow),
+  mySosEvent: __table({
+    name: 'my_sos_event',
     indexes: [
-      { accessor: 'id', name: 'signal_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'person_id', name: 'signal_person_id_idx_btree', algorithm: 'btree', columns: [
-        'personId',
-      ] },
     ],
     constraints: [
-      { name: 'signal_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, SignalRow),
-  sosEvent: __table({
-    name: 'sos_event',
+  }, MySosEventRow),
+  opsAgentStep: __table({
+    name: 'ops_agent_step',
     indexes: [
-      { accessor: 'client_id', name: 'sos_event_client_id_idx_btree', algorithm: 'btree', columns: [
-        'clientId',
-      ] },
-      { accessor: 'h3_cell', name: 'sos_event_h3_cell_idx_btree', algorithm: 'btree', columns: [
-        'h3Cell',
-      ] },
-      { accessor: 'id', name: 'sos_event_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'person_id', name: 'sos_event_person_id_idx_btree', algorithm: 'btree', columns: [
-        'personId',
-      ] },
     ],
     constraints: [
-      { name: 'sos_event_client_id_key', constraint: 'unique', columns: ['clientId'] },
-      { name: 'sos_event_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, SosEventRow),
-  triage: __table({
-    name: 'triage',
+  }, OpsAgentStepRow),
+  opsAssignment: __table({
+    name: 'ops_assignment',
     indexes: [
-      { accessor: 'id', name: 'triage_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'person_id', name: 'triage_person_id_idx_btree', algorithm: 'btree', columns: [
-        'personId',
-      ] },
     ],
     constraints: [
-      { name: 'triage_id_key', constraint: 'unique', columns: ['id'] },
     ],
-  }, TriageRow),
+  }, OpsAssignmentRow),
+  opsAuditLog: __table({
+    name: 'ops_audit_log',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsAuditLogRow),
+  opsCheckIn: __table({
+    name: 'ops_check_in',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsCheckInRow),
+  opsHousehold: __table({
+    name: 'ops_household',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsHouseholdRow),
+  opsIncidentReport: __table({
+    name: 'ops_incident_report',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsIncidentReportRow),
+  opsKeyPass: __table({
+    name: 'ops_key_pass',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsKeyPassRow),
+  opsPerson: __table({
+    name: 'ops_person',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsPersonRow),
+  opsSafetyNet: __table({
+    name: 'ops_safety_net',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsSafetyNetRow),
+  opsSignal: __table({
+    name: 'ops_signal',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsSignalRow),
+  opsSosEvent: __table({
+    name: 'ops_sos_event',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsSosEventRow),
+  opsTriage: __table({
+    name: 'ops_triage',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, OpsTriageRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("accept_assignment", AcceptAssignmentReducer),
+  __reducerSchema("add_staff", AddStaffReducer),
   __reducerSchema("assign_helper", AssignHelperReducer),
   __reducerSchema("check_in", CheckInReducerReducer),
   __reducerSchema("decline_assignment", DeclineAssignmentReducer),
@@ -302,6 +240,7 @@ const reducersSchema = __reducers(
   __reducerSchema("press_sos", PressSosReducer),
   __reducerSchema("recount_now", RecountNowReducer),
   __reducerSchema("register_person", RegisterPersonReducer),
+  __reducerSchema("remove_staff", RemoveStaffReducer),
   __reducerSchema("report_signal", ReportSignalReducer),
   __reducerSchema("revoke_key_pass", RevokeKeyPassReducer),
   __reducerSchema("save_incident_report", SaveIncidentReportReducer),
@@ -320,22 +259,44 @@ const proceduresSchema = __procedures(
 
 type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "tables"> & {
   tables: typeof tablesSchema.schemaType.tables & {
-    /** @deprecated Use `agentStep` instead. This alias will be removed in the next major version. */
-    readonly "agent_step": Omit<typeof tablesSchema.schemaType.tables["agentStep"], "accessorName"> & { readonly accessorName: "agent_step" };
-    /** @deprecated Use `auditLog` instead. This alias will be removed in the next major version. */
-    readonly "audit_log": Omit<typeof tablesSchema.schemaType.tables["auditLog"], "accessorName"> & { readonly accessorName: "audit_log" };
-    /** @deprecated Use `checkIn` instead. This alias will be removed in the next major version. */
-    readonly "check_in": Omit<typeof tablesSchema.schemaType.tables["checkIn"], "accessorName"> & { readonly accessorName: "check_in" };
     /** @deprecated Use `hexCell` instead. This alias will be removed in the next major version. */
     readonly "hex_cell": Omit<typeof tablesSchema.schemaType.tables["hexCell"], "accessorName"> & { readonly accessorName: "hex_cell" };
-    /** @deprecated Use `incidentReport` instead. This alias will be removed in the next major version. */
-    readonly "incident_report": Omit<typeof tablesSchema.schemaType.tables["incidentReport"], "accessorName"> & { readonly accessorName: "incident_report" };
-    /** @deprecated Use `keyPass` instead. This alias will be removed in the next major version. */
-    readonly "key_pass": Omit<typeof tablesSchema.schemaType.tables["keyPass"], "accessorName"> & { readonly accessorName: "key_pass" };
-    /** @deprecated Use `safetyNet` instead. This alias will be removed in the next major version. */
-    readonly "safety_net": Omit<typeof tablesSchema.schemaType.tables["safetyNet"], "accessorName"> & { readonly accessorName: "safety_net" };
-    /** @deprecated Use `sosEvent` instead. This alias will be removed in the next major version. */
-    readonly "sos_event": Omit<typeof tablesSchema.schemaType.tables["sosEvent"], "accessorName"> & { readonly accessorName: "sos_event" };
+    /** @deprecated Use `myAssignment` instead. This alias will be removed in the next major version. */
+    readonly "my_assignment": Omit<typeof tablesSchema.schemaType.tables["myAssignment"], "accessorName"> & { readonly accessorName: "my_assignment" };
+    /** @deprecated Use `myHousehold` instead. This alias will be removed in the next major version. */
+    readonly "my_household": Omit<typeof tablesSchema.schemaType.tables["myHousehold"], "accessorName"> & { readonly accessorName: "my_household" };
+    /** @deprecated Use `myKeyPass` instead. This alias will be removed in the next major version. */
+    readonly "my_key_pass": Omit<typeof tablesSchema.schemaType.tables["myKeyPass"], "accessorName"> & { readonly accessorName: "my_key_pass" };
+    /** @deprecated Use `myPerson` instead. This alias will be removed in the next major version. */
+    readonly "my_person": Omit<typeof tablesSchema.schemaType.tables["myPerson"], "accessorName"> & { readonly accessorName: "my_person" };
+    /** @deprecated Use `mySafetyNet` instead. This alias will be removed in the next major version. */
+    readonly "my_safety_net": Omit<typeof tablesSchema.schemaType.tables["mySafetyNet"], "accessorName"> & { readonly accessorName: "my_safety_net" };
+    /** @deprecated Use `mySosEvent` instead. This alias will be removed in the next major version. */
+    readonly "my_sos_event": Omit<typeof tablesSchema.schemaType.tables["mySosEvent"], "accessorName"> & { readonly accessorName: "my_sos_event" };
+    /** @deprecated Use `opsAgentStep` instead. This alias will be removed in the next major version. */
+    readonly "ops_agent_step": Omit<typeof tablesSchema.schemaType.tables["opsAgentStep"], "accessorName"> & { readonly accessorName: "ops_agent_step" };
+    /** @deprecated Use `opsAssignment` instead. This alias will be removed in the next major version. */
+    readonly "ops_assignment": Omit<typeof tablesSchema.schemaType.tables["opsAssignment"], "accessorName"> & { readonly accessorName: "ops_assignment" };
+    /** @deprecated Use `opsAuditLog` instead. This alias will be removed in the next major version. */
+    readonly "ops_audit_log": Omit<typeof tablesSchema.schemaType.tables["opsAuditLog"], "accessorName"> & { readonly accessorName: "ops_audit_log" };
+    /** @deprecated Use `opsCheckIn` instead. This alias will be removed in the next major version. */
+    readonly "ops_check_in": Omit<typeof tablesSchema.schemaType.tables["opsCheckIn"], "accessorName"> & { readonly accessorName: "ops_check_in" };
+    /** @deprecated Use `opsHousehold` instead. This alias will be removed in the next major version. */
+    readonly "ops_household": Omit<typeof tablesSchema.schemaType.tables["opsHousehold"], "accessorName"> & { readonly accessorName: "ops_household" };
+    /** @deprecated Use `opsIncidentReport` instead. This alias will be removed in the next major version. */
+    readonly "ops_incident_report": Omit<typeof tablesSchema.schemaType.tables["opsIncidentReport"], "accessorName"> & { readonly accessorName: "ops_incident_report" };
+    /** @deprecated Use `opsKeyPass` instead. This alias will be removed in the next major version. */
+    readonly "ops_key_pass": Omit<typeof tablesSchema.schemaType.tables["opsKeyPass"], "accessorName"> & { readonly accessorName: "ops_key_pass" };
+    /** @deprecated Use `opsPerson` instead. This alias will be removed in the next major version. */
+    readonly "ops_person": Omit<typeof tablesSchema.schemaType.tables["opsPerson"], "accessorName"> & { readonly accessorName: "ops_person" };
+    /** @deprecated Use `opsSafetyNet` instead. This alias will be removed in the next major version. */
+    readonly "ops_safety_net": Omit<typeof tablesSchema.schemaType.tables["opsSafetyNet"], "accessorName"> & { readonly accessorName: "ops_safety_net" };
+    /** @deprecated Use `opsSignal` instead. This alias will be removed in the next major version. */
+    readonly "ops_signal": Omit<typeof tablesSchema.schemaType.tables["opsSignal"], "accessorName"> & { readonly accessorName: "ops_signal" };
+    /** @deprecated Use `opsSosEvent` instead. This alias will be removed in the next major version. */
+    readonly "ops_sos_event": Omit<typeof tablesSchema.schemaType.tables["opsSosEvent"], "accessorName"> & { readonly accessorName: "ops_sos_event" };
+    /** @deprecated Use `opsTriage` instead. This alias will be removed in the next major version. */
+    readonly "ops_triage": Omit<typeof tablesSchema.schemaType.tables["opsTriage"], "accessorName"> & { readonly accessorName: "ops_triage" };
   };
 };
 
@@ -354,14 +315,25 @@ const REMOTE_MODULE = {
 >;
 
 const tableAccessorAliases = {
-  "agent_step": "agentStep",
-  "audit_log": "auditLog",
-  "check_in": "checkIn",
   "hex_cell": "hexCell",
-  "incident_report": "incidentReport",
-  "key_pass": "keyPass",
-  "safety_net": "safetyNet",
-  "sos_event": "sosEvent",
+  "my_assignment": "myAssignment",
+  "my_household": "myHousehold",
+  "my_key_pass": "myKeyPass",
+  "my_person": "myPerson",
+  "my_safety_net": "mySafetyNet",
+  "my_sos_event": "mySosEvent",
+  "ops_agent_step": "opsAgentStep",
+  "ops_assignment": "opsAssignment",
+  "ops_audit_log": "opsAuditLog",
+  "ops_check_in": "opsCheckIn",
+  "ops_household": "opsHousehold",
+  "ops_incident_report": "opsIncidentReport",
+  "ops_key_pass": "opsKeyPass",
+  "ops_person": "opsPerson",
+  "ops_safety_net": "opsSafetyNet",
+  "ops_signal": "opsSignal",
+  "ops_sos_event": "opsSosEvent",
+  "ops_triage": "opsTriage",
 } as const;
 
 function __withTableAccessorAliases<T extends object>(target: T, freeze = false): T {
@@ -382,42 +354,86 @@ function __withTableAccessorAliases<T extends object>(target: T, freeze = false)
 
 type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
 export type DbView = __DbViewBase & {
-  /** @deprecated Use `agentStep` instead. This alias will be removed in the next major version. */
-  readonly "agent_step": __DbViewBase["agentStep"];
-  /** @deprecated Use `auditLog` instead. This alias will be removed in the next major version. */
-  readonly "audit_log": __DbViewBase["auditLog"];
-  /** @deprecated Use `checkIn` instead. This alias will be removed in the next major version. */
-  readonly "check_in": __DbViewBase["checkIn"];
   /** @deprecated Use `hexCell` instead. This alias will be removed in the next major version. */
   readonly "hex_cell": __DbViewBase["hexCell"];
-  /** @deprecated Use `incidentReport` instead. This alias will be removed in the next major version. */
-  readonly "incident_report": __DbViewBase["incidentReport"];
-  /** @deprecated Use `keyPass` instead. This alias will be removed in the next major version. */
-  readonly "key_pass": __DbViewBase["keyPass"];
-  /** @deprecated Use `safetyNet` instead. This alias will be removed in the next major version. */
-  readonly "safety_net": __DbViewBase["safetyNet"];
-  /** @deprecated Use `sosEvent` instead. This alias will be removed in the next major version. */
-  readonly "sos_event": __DbViewBase["sosEvent"];
+  /** @deprecated Use `myAssignment` instead. This alias will be removed in the next major version. */
+  readonly "my_assignment": __DbViewBase["myAssignment"];
+  /** @deprecated Use `myHousehold` instead. This alias will be removed in the next major version. */
+  readonly "my_household": __DbViewBase["myHousehold"];
+  /** @deprecated Use `myKeyPass` instead. This alias will be removed in the next major version. */
+  readonly "my_key_pass": __DbViewBase["myKeyPass"];
+  /** @deprecated Use `myPerson` instead. This alias will be removed in the next major version. */
+  readonly "my_person": __DbViewBase["myPerson"];
+  /** @deprecated Use `mySafetyNet` instead. This alias will be removed in the next major version. */
+  readonly "my_safety_net": __DbViewBase["mySafetyNet"];
+  /** @deprecated Use `mySosEvent` instead. This alias will be removed in the next major version. */
+  readonly "my_sos_event": __DbViewBase["mySosEvent"];
+  /** @deprecated Use `opsAgentStep` instead. This alias will be removed in the next major version. */
+  readonly "ops_agent_step": __DbViewBase["opsAgentStep"];
+  /** @deprecated Use `opsAssignment` instead. This alias will be removed in the next major version. */
+  readonly "ops_assignment": __DbViewBase["opsAssignment"];
+  /** @deprecated Use `opsAuditLog` instead. This alias will be removed in the next major version. */
+  readonly "ops_audit_log": __DbViewBase["opsAuditLog"];
+  /** @deprecated Use `opsCheckIn` instead. This alias will be removed in the next major version. */
+  readonly "ops_check_in": __DbViewBase["opsCheckIn"];
+  /** @deprecated Use `opsHousehold` instead. This alias will be removed in the next major version. */
+  readonly "ops_household": __DbViewBase["opsHousehold"];
+  /** @deprecated Use `opsIncidentReport` instead. This alias will be removed in the next major version. */
+  readonly "ops_incident_report": __DbViewBase["opsIncidentReport"];
+  /** @deprecated Use `opsKeyPass` instead. This alias will be removed in the next major version. */
+  readonly "ops_key_pass": __DbViewBase["opsKeyPass"];
+  /** @deprecated Use `opsPerson` instead. This alias will be removed in the next major version. */
+  readonly "ops_person": __DbViewBase["opsPerson"];
+  /** @deprecated Use `opsSafetyNet` instead. This alias will be removed in the next major version. */
+  readonly "ops_safety_net": __DbViewBase["opsSafetyNet"];
+  /** @deprecated Use `opsSignal` instead. This alias will be removed in the next major version. */
+  readonly "ops_signal": __DbViewBase["opsSignal"];
+  /** @deprecated Use `opsSosEvent` instead. This alias will be removed in the next major version. */
+  readonly "ops_sos_event": __DbViewBase["opsSosEvent"];
+  /** @deprecated Use `opsTriage` instead. This alias will be removed in the next major version. */
+  readonly "ops_triage": __DbViewBase["opsTriage"];
 };
 
 type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
 export type Tables = __TablesBase & {
-  /** @deprecated Use `agentStep` instead. This alias will be removed in the next major version. */
-  readonly "agent_step": __TablesBase["agentStep"];
-  /** @deprecated Use `auditLog` instead. This alias will be removed in the next major version. */
-  readonly "audit_log": __TablesBase["auditLog"];
-  /** @deprecated Use `checkIn` instead. This alias will be removed in the next major version. */
-  readonly "check_in": __TablesBase["checkIn"];
   /** @deprecated Use `hexCell` instead. This alias will be removed in the next major version. */
   readonly "hex_cell": __TablesBase["hexCell"];
-  /** @deprecated Use `incidentReport` instead. This alias will be removed in the next major version. */
-  readonly "incident_report": __TablesBase["incidentReport"];
-  /** @deprecated Use `keyPass` instead. This alias will be removed in the next major version. */
-  readonly "key_pass": __TablesBase["keyPass"];
-  /** @deprecated Use `safetyNet` instead. This alias will be removed in the next major version. */
-  readonly "safety_net": __TablesBase["safetyNet"];
-  /** @deprecated Use `sosEvent` instead. This alias will be removed in the next major version. */
-  readonly "sos_event": __TablesBase["sosEvent"];
+  /** @deprecated Use `myAssignment` instead. This alias will be removed in the next major version. */
+  readonly "my_assignment": __TablesBase["myAssignment"];
+  /** @deprecated Use `myHousehold` instead. This alias will be removed in the next major version. */
+  readonly "my_household": __TablesBase["myHousehold"];
+  /** @deprecated Use `myKeyPass` instead. This alias will be removed in the next major version. */
+  readonly "my_key_pass": __TablesBase["myKeyPass"];
+  /** @deprecated Use `myPerson` instead. This alias will be removed in the next major version. */
+  readonly "my_person": __TablesBase["myPerson"];
+  /** @deprecated Use `mySafetyNet` instead. This alias will be removed in the next major version. */
+  readonly "my_safety_net": __TablesBase["mySafetyNet"];
+  /** @deprecated Use `mySosEvent` instead. This alias will be removed in the next major version. */
+  readonly "my_sos_event": __TablesBase["mySosEvent"];
+  /** @deprecated Use `opsAgentStep` instead. This alias will be removed in the next major version. */
+  readonly "ops_agent_step": __TablesBase["opsAgentStep"];
+  /** @deprecated Use `opsAssignment` instead. This alias will be removed in the next major version. */
+  readonly "ops_assignment": __TablesBase["opsAssignment"];
+  /** @deprecated Use `opsAuditLog` instead. This alias will be removed in the next major version. */
+  readonly "ops_audit_log": __TablesBase["opsAuditLog"];
+  /** @deprecated Use `opsCheckIn` instead. This alias will be removed in the next major version. */
+  readonly "ops_check_in": __TablesBase["opsCheckIn"];
+  /** @deprecated Use `opsHousehold` instead. This alias will be removed in the next major version. */
+  readonly "ops_household": __TablesBase["opsHousehold"];
+  /** @deprecated Use `opsIncidentReport` instead. This alias will be removed in the next major version. */
+  readonly "ops_incident_report": __TablesBase["opsIncidentReport"];
+  /** @deprecated Use `opsKeyPass` instead. This alias will be removed in the next major version. */
+  readonly "ops_key_pass": __TablesBase["opsKeyPass"];
+  /** @deprecated Use `opsPerson` instead. This alias will be removed in the next major version. */
+  readonly "ops_person": __TablesBase["opsPerson"];
+  /** @deprecated Use `opsSafetyNet` instead. This alias will be removed in the next major version. */
+  readonly "ops_safety_net": __TablesBase["opsSafetyNet"];
+  /** @deprecated Use `opsSignal` instead. This alias will be removed in the next major version. */
+  readonly "ops_signal": __TablesBase["opsSignal"];
+  /** @deprecated Use `opsSosEvent` instead. This alias will be removed in the next major version. */
+  readonly "ops_sos_event": __TablesBase["opsSosEvent"];
+  /** @deprecated Use `opsTriage` instead. This alias will be removed in the next major version. */
+  readonly "ops_triage": __TablesBase["opsTriage"];
 };
 
 /** The tables available in this remote SpacetimeDB module. Each table reference doubles as a query builder. */

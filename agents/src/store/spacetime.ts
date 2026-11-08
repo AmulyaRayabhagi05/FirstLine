@@ -7,17 +7,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Infer } from "spacetimedb";
 import { DbConnection } from "../module_bindings/index";
-import type AgentStepRowT from "../module_bindings/agent_step_table";
-import type AssignmentRowT from "../module_bindings/assignment_table";
-import type CheckInRowT from "../module_bindings/check_in_table";
+import type AgentStepRowT from "../module_bindings/ops_agent_step_table";
+import type AssignmentRowT from "../module_bindings/ops_assignment_table";
+import type CheckInRowT from "../module_bindings/ops_check_in_table";
 import type HexCellRowT from "../module_bindings/hex_cell_table";
-import type HouseholdRowT from "../module_bindings/household_table";
-import type IncidentReportRowT from "../module_bindings/incident_report_table";
-import type PersonRowT from "../module_bindings/person_table";
-import type SafetyNetRowT from "../module_bindings/safety_net_table";
-import type SignalRowT from "../module_bindings/signal_table";
-import type SosEventRowT from "../module_bindings/sos_event_table";
-import type TriageRowT from "../module_bindings/triage_table";
+import type HouseholdRowT from "../module_bindings/ops_household_table";
+import type IncidentReportRowT from "../module_bindings/ops_incident_report_table";
+import type PersonRowT from "../module_bindings/ops_person_table";
+import type SafetyNetRowT from "../module_bindings/ops_safety_net_table";
+import type SignalRowT from "../module_bindings/ops_signal_table";
+import type SosEventRowT from "../module_bindings/ops_sos_event_table";
+import type TriageRowT from "../module_bindings/ops_triage_table";
 import type {
   AgentStep,
   Assignment,
@@ -79,18 +79,23 @@ export function spacetimeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Sp
   };
 }
 
-/** Tables the worker reads. agent_step, audit_log, key_pass and config are not needed. */
+/**
+ * What the worker reads. The module's tables are private (they hold medical needs, phones and
+ * addresses); the ops_* views return every row to the worker identity and nothing to anyone
+ * else, so the module owner must run set_worker_identity for this identity first. hex_cell is
+ * public. agent_step, audit_log and key_pass are not needed.
+ */
 export const WORKER_QUERIES = [
-  "SELECT * FROM person",
-  "SELECT * FROM household",
+  "SELECT * FROM ops_person",
+  "SELECT * FROM ops_household",
   "SELECT * FROM hex_cell",
-  "SELECT * FROM safety_net",
-  "SELECT * FROM sos_event",
-  "SELECT * FROM check_in",
-  "SELECT * FROM signal",
-  "SELECT * FROM triage",
-  "SELECT * FROM assignment",
-  "SELECT * FROM incident_report",
+  "SELECT * FROM ops_safety_net",
+  "SELECT * FROM ops_sos_event",
+  "SELECT * FROM ops_check_in",
+  "SELECT * FROM ops_signal",
+  "SELECT * FROM ops_triage",
+  "SELECT * FROM ops_assignment",
+  "SELECT * FROM ops_incident_report",
 ];
 
 // ---------------- row conversion ----------------
@@ -213,6 +218,12 @@ export const toAgentStep = (r: AgentStepRow): AgentStep => ({
   createdAt: r.createdAt.toDate(),
 });
 
+/** Views have no client-side indexes, so lookups scan the cached rows. */
+function findById<T extends { id: bigint }>(rows: Iterable<T>, id: bigint): T | undefined {
+  for (const r of rows) if (r.id === id) return r;
+  return undefined;
+}
+
 function maxId<T extends { id: bigint }>(rows: Iterable<T>): bigint {
   let m = 0n;
   for (const r of rows) if (r.id > m) m = r.id;
@@ -289,21 +300,21 @@ export class SpacetimeStore implements FirstLineStore {
     const changed = () => {
       for (const w of [...this.changeWaiters]) w();
     };
-    db.sosEvent.onInsert((_ctx, row) => {
+    db.opsSosEvent.onInsert((_ctx, row) => {
       changed();
       this.emit(this.listeners.sos, toSos(row));
     });
-    db.signal.onInsert((_ctx, row) => {
+    db.opsSignal.onInsert((_ctx, row) => {
       changed();
       this.emit(this.listeners.signal, toSignal(row));
     });
-    db.assignment.onInsert(() => changed());
-    db.assignment.onUpdate((_ctx, oldRow, newRow) => {
+    db.opsAssignment.onInsert(() => changed());
+    db.opsAssignment.onUpdate((_ctx, oldRow, newRow) => {
       changed();
       if (oldRow.state === "offered" && newRow.state === "timed_out") this.emit(this.listeners.timeout, toAssignment(newRow));
       if (oldRow.state === "offered" && newRow.state === "declined") this.emit(this.listeners.declined, toAssignment(newRow));
     });
-    for (const t of [db.person, db.triage, db.incidentReport, db.checkIn, db.hexCell, db.safetyNet, db.household] as const) {
+    for (const t of [db.opsPerson, db.opsTriage, db.opsIncidentReport, db.opsCheckIn, db.hexCell, db.opsSafetyNet, db.opsHousehold] as const) {
       (t as { onInsert(cb: () => void): void }).onInsert(changed);
     }
   }
@@ -347,10 +358,10 @@ export class SpacetimeStore implements FirstLineStore {
   // ---------------- phone / channel reducers ----------------
 
   async registerPerson(args: RegisterPersonArgs): Promise<{ personId: Id; householdId: Id }> {
-    const before = maxId(this.conn.db.person.iter());
+    const before = maxId(this.conn.db.opsPerson.iter());
     await this.conn.reducers.registerPerson(args);
     const row = await this.waitFor(
-      () => [...this.conn.db.person.iter()].find((p) => p.id > before && p.name === args.name && p.phone === args.phone),
+      () => [...this.conn.db.opsPerson.iter()].find((p) => p.id > before && p.name === args.name && p.phone === args.phone),
       "registered person",
     );
     return { personId: n(row.id), householdId: n(row.householdId) };
@@ -365,7 +376,7 @@ export class SpacetimeStore implements FirstLineStore {
 
   async pressSos(args: PressSosArgs): Promise<Id> {
     await this.conn.reducers.pressSos({ ...args, personId: big(args.personId) });
-    const row = await this.waitFor(() => [...this.conn.db.sosEvent.client_id.filter(args.clientId)][0], `sos ${args.clientId}`);
+    const row = await this.waitFor(() => [...this.conn.db.opsSosEvent.iter()].find((s) => s.clientId === args.clientId), `sos ${args.clientId}`);
     return n(row.id);
   }
 
@@ -392,7 +403,7 @@ export class SpacetimeStore implements FirstLineStore {
   // ---------------- worker reducers ----------------
 
   async saveTriage(args: SaveTriageArgs): Promise<Id> {
-    const before = maxId(this.conn.db.triage.iter());
+    const before = maxId(this.conn.db.opsTriage.iter());
     await this.conn.reducers.saveTriage({
       sosId: args.sosId === undefined ? undefined : big(args.sosId),
       personId: big(args.personId),
@@ -404,18 +415,18 @@ export class SpacetimeStore implements FirstLineStore {
       model: args.model,
     });
     const row = await this.waitFor(
-      () => [...this.conn.db.triage.iter()].find((t) => t.id > before && t.personId === big(args.personId)),
+      () => [...this.conn.db.opsTriage.iter()].find((t) => t.id > before && t.personId === big(args.personId)),
       "saved triage",
     );
     return n(row.id);
   }
 
   async assignHelper(sosId: Id, helperId: Id, ring: number): Promise<Id> {
-    const before = maxId(this.conn.db.assignment.iter());
+    const before = maxId(this.conn.db.opsAssignment.iter());
     await this.conn.reducers.assignHelper({ sosId: big(sosId), helperId: big(helperId), ring });
     const row = await this.waitFor(
       () =>
-        [...this.conn.db.assignment.sos_id.filter(big(sosId))].find((a) => a.id > before && a.helperId === big(helperId)),
+        [...this.conn.db.opsAssignment.iter()].filter((a) => a.sosId === big(sosId)).find((a) => a.id > before && a.helperId === big(helperId)),
       "new assignment",
     );
     return n(row.id);
@@ -426,10 +437,10 @@ export class SpacetimeStore implements FirstLineStore {
   }
 
   async saveIncidentReport(args: SaveIncidentReportArgs): Promise<Id> {
-    const before = maxId(this.conn.db.incidentReport.iter());
+    const before = maxId(this.conn.db.opsIncidentReport.iter());
     await this.conn.reducers.saveIncidentReport(args);
     const row = await this.waitFor(
-      () => [...this.conn.db.incidentReport.iter()].find((r) => r.id > before && r.h3Cell === args.h3Cell),
+      () => [...this.conn.db.opsIncidentReport.iter()].find((r) => r.id > before && r.h3Cell === args.h3Cell),
       "incident report",
     );
     return n(row.id);
@@ -454,44 +465,44 @@ export class SpacetimeStore implements FirstLineStore {
   // ---------------- reads (client cache) ----------------
 
   async getPerson(personId: Id) {
-    const r = this.conn.db.person.id.find(big(personId));
+    const r = findById(this.conn.db.opsPerson.iter(), big(personId));
     return r ? toPerson(r) : undefined;
   }
   async getHousehold(householdId: Id) {
-    const r = this.conn.db.household.id.find(big(householdId));
+    const r = findById(this.conn.db.opsHousehold.iter(), big(householdId));
     return r ? toHousehold(r) : undefined;
   }
   async listPeople() {
-    return [...this.conn.db.person.iter()].map(toPerson);
+    return [...this.conn.db.opsPerson.iter()].map(toPerson);
   }
   async getSafetyNet(ownerId: Id) {
-    return [...this.conn.db.safetyNet.iter()].filter((m) => m.ownerId === big(ownerId)).map(toNet);
+    return [...this.conn.db.opsSafetyNet.iter()].filter((m) => m.ownerId === big(ownerId)).map(toNet);
   }
   async getSos(sosId: Id) {
-    const r = this.conn.db.sosEvent.id.find(big(sosId));
+    const r = findById(this.conn.db.opsSosEvent.iter(), big(sosId));
     return r ? toSos(r) : undefined;
   }
   async listOpenSos() {
-    return [...this.conn.db.sosEvent.iter()].filter((s) => s.state !== "resolved").map(toSos);
+    return [...this.conn.db.opsSosEvent.iter()].filter((s) => s.state !== "resolved").map(toSos);
   }
   async listAssignments(sosId: Id) {
-    return [...this.conn.db.assignment.sos_id.filter(big(sosId))].map(toAssignment).sort((a, b) => a.id - b.id);
+    return [...this.conn.db.opsAssignment.iter()].filter((a) => a.sosId === big(sosId)).map(toAssignment).sort((a, b) => a.id - b.id);
   }
   async listTimedOutAssignments() {
-    return [...this.conn.db.assignment.iter()].filter((a) => a.state === "timed_out").map(toAssignment);
+    return [...this.conn.db.opsAssignment.iter()].filter((a) => a.state === "timed_out").map(toAssignment);
   }
   async listUnknownPeople() {
-    return [...this.conn.db.person.iter()].filter((p) => p.status === "unknown").map(toPerson);
+    return [...this.conn.db.opsPerson.iter()].filter((p) => p.status === "unknown").map(toPerson);
   }
   async listSignals(personId: Id) {
-    return [...this.conn.db.signal.iter()].filter((s) => s.personId === big(personId)).map(toSignal);
+    return [...this.conn.db.opsSignal.iter()].filter((s) => s.personId === big(personId)).map(toSignal);
   }
   async listCheckIns(personId: Id) {
-    return [...this.conn.db.checkIn.person_id.filter(big(personId))].map(toCheckIn);
+    return [...this.conn.db.opsCheckIn.iter()].filter((c) => c.personId === big(personId)).map(toCheckIn);
   }
   async getTriageForSos(sosId: Id) {
     let best: TriageRow | undefined;
-    for (const t of this.conn.db.triage.iter()) {
+    for (const t of this.conn.db.opsTriage.iter()) {
       if (t.sosId === big(sosId) && (!best || t.id > best.id)) best = t;
     }
     return best ? toTriage(best) : undefined;
@@ -507,7 +518,7 @@ export class SpacetimeStore implements FirstLineStore {
     return this.ownSteps.filter((s) => subject === undefined || s.subject === subject);
   }
   async listIncidentReports() {
-    return [...this.conn.db.incidentReport.iter()].map(toReport);
+    return [...this.conn.db.opsIncidentReport.iter()].map(toReport);
   }
 
   // ---------------- subscriptions ----------------
