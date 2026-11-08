@@ -1,10 +1,68 @@
 import { create } from 'zustand';
-import { homes, statusAt, type Status } from '../sim/world';
+import { homes, type Status } from '../sim/world';
 
 export type DemoPhase = 'off' | 'sweep' | 'flatten' | 'play';
 
+/** One agent reasoning step from ops_agent_step, tied to a home when its subject resolves to one. */
+export interface AgentLine {
+  at: number; // ms since epoch
+  agent: string;
+  kind: string;
+  text: string;
+  conf: number | null;
+  subject: string;
+  homeIdx: number | null;
+}
+
+/** The household shown on a map home, built from SpacetimeDB rows. */
+export interface Resident {
+  householdId: string;
+  address: string;
+  neighborhood: string;
+  name: string; // the most at-risk person in the household
+  age: number;
+  people: number;
+  alone: boolean;
+  device: boolean;
+  mobility: string;
+  medical: string;
+  smart: boolean;
+  language: string;
+  priority: string;
+  priorityScore: number;
+  status: Status;
+  powerOut: boolean;
+  lastSeen: number | null;
+  lastContactVia: string | null;
+  helper: string | null;
+  net: { name: string; status: Status }[];
+  log: AgentLine[];
+}
+
+export interface IncidentReport {
+  id: string;
+  cell: string;
+  summary: string;
+  blockedRoads: string;
+  p1: number;
+  p2: number;
+  unknown: number;
+  at: number;
+}
+
+export interface LiveInfo {
+  state: 'connecting' | 'subscribed' | 'error';
+  message: string;
+  identity: string;
+  people: number;
+  households: number;
+  openSos: number;
+  alertedCells: number;
+  lastUpdate: number;
+}
+
 export interface MapState {
-  T: number; // hours after 22:00
+  T: number; // camera choreography clock for the demo (sweep, flatten, play), in arbitrary units
   playing: boolean;
   dimTarget: number; // 0 = flat 2D map, 1 = 3D city
   selectedId: number | null;
@@ -13,9 +71,12 @@ export interface MapState {
   showBeams: boolean;
   showZone: boolean;
   showNames: boolean;
-  statuses: Status[];
-  live: boolean; // true once the live SpacetimeDB feed is connected; the simulated clock stops driving statuses
-  version: number; // bumps when any status changes
+  statuses: Status[]; // per home, from residents
+  residents: (Resident | null)[]; // per home; null = no registered household placed there
+  feed: AgentLine[]; // newest last
+  reports: IncidentReport[]; // newest first
+  liveInfo: LiveInfo;
+  version: number; // bumps when live data changes
   cam: { x: number; z: number; theta: number }; // for the minimap
   setT: (t: number) => void;
   setPlaying: (v: boolean) => void;
@@ -31,12 +92,12 @@ export interface MapState {
   setIntro: (v: boolean) => void;
   layersOpen: boolean;
   setLayersOpen: (v: boolean) => void;
+  setLive: (data: { residents: (Resident | null)[]; feed: AgentLine[]; reports: IncidentReport[] }) => void;
+  setLiveInfo: (info: Partial<LiveInfo>) => void;
 }
 
-const computeStatuses = (t: number) => homes.map((h) => statusAt(h, t));
-
 export const useMap = create<MapState>((set, get) => ({
-  T: 0, // the city is quiet behind the intro; the night starts when the user enters
+  T: 0,
   playing: false,
   dimTarget: 1,
   selectedId: null,
@@ -45,19 +106,15 @@ export const useMap = create<MapState>((set, get) => ({
   showBeams: true,
   showZone: true,
   showNames: true,
-  statuses: computeStatuses(0),
-  live: false,
+  statuses: homes.map(() => 'normal'),
+  residents: homes.map(() => null),
+  feed: [],
+  reports: [],
+  liveInfo: { state: 'connecting', message: 'Connecting to SpacetimeDB…', identity: '', people: 0, households: 0, openSos: 0, alertedCells: 0, lastUpdate: 0 },
   version: 0,
   cam: { x: 0, z: 0, theta: 0.75 },
   panTo: null,
-  setT: (t) => {
-    const T = Math.max(0, Math.min(8, t));
-    if (get().live) return set({ T }); // live statuses come from SpacetimeDB, not the replay clock
-    const prev = get().statuses;
-    const next = computeStatuses(T);
-    const changed = next.some((s, i) => s !== prev[i]);
-    set(changed ? { T, statuses: next, version: get().version + 1 } : { T });
-  },
+  setT: (t) => set({ T: Math.max(0, Math.min(8, t)) }),
   setPlaying: (v) => set((s) => ({ playing: v, T: v && s.T >= 7.95 ? 0 : s.T })),
   setDim: (d) => set({ dimTarget: Math.max(0, Math.min(1, d)) }),
   select: (id) => set({ selectedId: id }),
@@ -70,11 +127,19 @@ export const useMap = create<MapState>((set, get) => ({
   setIntro: (v) => set({ intro: v }),
   layersOpen: false,
   setLayersOpen: (v) => set({ layersOpen: v }),
+  setLive: ({ residents, feed, reports }) =>
+    set({
+      residents,
+      statuses: residents.map((r) => r?.status ?? 'normal'),
+      feed,
+      reports,
+      version: get().version + 1,
+    }),
+  setLiveInfo: (info) => set((s) => ({ liveInfo: { ...s.liveInfo, ...info } })),
 }));
 
-// Decisions worth surfacing to a person: triage to P1, escalations and reassignments. Routine check-ins stay quiet.
-export const isKeyDecision = (e: { status: string; text: string; agent: string }) =>
-  e.status === 'p1' || /escalat|timed out|next ring/.test(e.text);
+// Agent decisions worth surfacing to a person in the ticker (the feed already holds decisions only).
+export const isKeyDecision = (e: AgentLine) => e.kind === 'decision';
 
 export function counts(statuses: Status[]) {
   const c = { p1: 0, p2: 0, unknown: 0, enroute: 0, safe: 0, normal: 0 };

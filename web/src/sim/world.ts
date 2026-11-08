@@ -93,15 +93,25 @@ export const PARKS = [
   { x: 6, z: 42, r: 5 },
   { x: -14, z: -48, r: 5 },
 ];
-export const COMMS = [
-  { name: 'Oak Cliff', x: -25, z: 32, c: '#e8283d' },
-  { name: 'Bishop Arts', x: -47, z: -4, c: '#ff9a3c' },
-  { name: 'Kessler Park', x: -30, z: -36, c: '#5aa9ff' },
-  { name: 'Cedars', x: 4, z: -12, c: '#b58cff' },
-  { name: 'Deep Ellum', x: 32, z: -38, c: '#4fe08f' },
-  { name: 'Lakewood', x: 46, z: 8, c: '#f4d35e' },
-  { name: 'Pleasant Grove', x: 18, z: 34, c: '#62d6e8' },
+// Real Dallas geography. The live data comes from households in five Dallas neighborhoods
+// (bounding boxes in sim/src/data.ts); project() maps lat/lng onto the city disk, north up,
+// at 5 world units per km, centered on the middle of those neighborhoods.
+const LAT0 = 32.7845;
+const LNG0 = -96.7805;
+const UNITS_PER_KM = 5;
+const KM_PER_DEG_LAT = 111.0;
+const KM_PER_DEG_LNG = 111.32 * Math.cos((LAT0 * Math.PI) / 180);
+export function project(lat: number, lng: number): { x: number; z: number } {
+  return { x: (lng - LNG0) * KM_PER_DEG_LNG * UNITS_PER_KM, z: -(lat - LAT0) * KM_PER_DEG_LAT * UNITS_PER_KM };
+}
+export const DALLAS_NEIGHBORHOODS = [
+  { name: 'North Oak Cliff', lat: 32.743, lng: -96.835, c: '#e8283d' },
+  { name: 'Pleasant Grove', lat: 32.707, lng: -96.695, c: '#62d6e8' },
+  { name: 'Lakewood', lat: 32.818, lng: -96.75, c: '#f4d35e' },
+  { name: 'Vickery Meadow', lat: 32.8685, lng: -96.764, c: '#b58cff' },
+  { name: 'West Dallas', lat: 32.7805, lng: -96.8725, c: '#ff9a3c' },
 ];
+export const COMMS = DALLAS_NEIGHBORHOODS.map((n) => ({ name: n.name, ...project(n.lat, n.lng), c: n.c }));
 export type Anchor = { type: 'hospital' | 'shelter'; label: string; x: number; z: number };
 export const ANCHORS: Anchor[] = [
   { type: 'hospital', label: 'Hospital · ER open', x: 30, z: -14 },
@@ -122,7 +132,8 @@ const nearComm = (x: number, z: number) => {
   return b;
 };
 
-export type TimelineEvent = { t: number; status: Status; agent: string; text: string; conf: string | null };
+// A home is map furniture: a footprint on the city disk. Who lives there, and their status,
+// comes from SpacetimeDB (see ../data/live.ts), never from this file.
 export interface Home {
   id: number;
   idx: number;
@@ -135,26 +146,12 @@ export interface Home {
   roof: string;
   comm: number;
   danger: boolean;
-  name: string;
-  age: number;
-  alone: boolean;
-  device: boolean;
-  mobility: boolean;
-  smart: boolean;
-  spanish: boolean;
-  vuln: number;
   riverKm: string;
-  tHit?: number;
-  tPower?: number;
-  events: TimelineEvent[];
   net: Home[];
   top: number;
 }
 export interface OuterHome { x: number; z: number; rot: number; sx: number; sy: number; wall: string; roof: string }
 
-const FIRST = ['Rosa', 'Earl', 'Mae', 'Luis', 'Doris', 'Henry', 'Ana', 'Walter', 'Grace', 'Tomas', 'June', 'Calvin', 'Irene', 'Marcus', 'Lupe', 'Ruth', 'Dale', 'Nora', 'Frank', 'Elena', 'Otis', 'Bea', 'Ray', 'Carmen'];
-const CHANNEL = ['app', 'SMS', 'voice call', 'neighbor visit', 'mesh radio'];
-const SOS = ['"agua entrando, mi mamá no puede caminar"', '"water at the back door, need help with dad"', '"power out, oxygen machine on battery"', '"car stuck, kids with me, water rising"', '"can\'t get mom down the stairs"'];
 const WALLS = ['#ffffff', '#e9f0ff', '#f2ece0', '#e3f0ea', '#efe6ee', '#dfe6f5'];
 const ROOFS = ['#1d2540', '#22283f', '#1b2a33', '#2a2236', '#252a2f', '#1a2236'];
 
@@ -169,35 +166,23 @@ for (let gx = -CITY_R; gx <= CITY_R; gx += S)
     if (PARKS.some((p) => Math.hypot(p.x - x, p.z - z) < p.r)) continue;
     if (ANCHORS.some((a) => Math.hypot(a.x - x, a.z - z) < 4.4)) continue;
     if (rnd() < 0.08) continue;
-    const age = rnd() < 0.32 ? 66 + Math.floor(rnd() * 28) : 24 + Math.floor(rnd() * 40);
-    const h: Home = {
+    const sy = 0.85 + rnd() * 0.5;
+    homes.push({
       id: 1000 + homes.length,
       idx: homes.length,
       x,
       z,
       rot: (rnd() < 0.5 ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.3,
       sx: 0.85 + rnd() * 0.4,
-      sy: 0.85 + rnd() * 0.5,
+      sy,
       wall: pick(WALLS),
       roof: pick(ROOFS),
       comm: nearComm(x, z),
       danger: distPL(river, x, z) < DANGER_W,
-      name: pick(FIRST),
-      age,
-      alone: rnd() < (age > 65 ? 0.5 : 0.2),
-      device: rnd() < (age > 65 ? 0.28 : 0.05),
-      mobility: rnd() < (age > 65 ? 0.3 : 0.06),
-      smart: rnd() < (age > 65 ? 0.62 : 0.95),
-      spanish: rnd() < 0.28,
-      vuln: 0,
-      riverKm: (distPL(river, x, z) * 0.09).toFixed(1),
-      events: [],
+      riverKm: (distPL(river, x, z) / UNITS_PER_KM).toFixed(1),
       net: [],
-      top: 0,
-    };
-    h.vuln = (h.age >= 75 ? 25 : h.age >= 65 ? 12 : 0) + (h.alone ? 15 : 0) + (h.device ? 25 : 0) + (h.mobility ? 15 : 0) + (h.smart ? 0 : 10);
-    h.top = (1.25 + 0.95) * h.sy;
-    homes.push(h);
+      top: (1.25 + 0.95) * sy,
+    });
   }
 
 export const outerHomes: OuterHome[] = [];
@@ -210,67 +195,15 @@ for (let gx = -FAR; gx <= FAR; gx += 4.4)
     outerHomes.push({ x, z, rot: (rnd() < 0.5 ? 0 : Math.PI / 2) + (rnd() - 0.5) * 0.3, sx: 0.85 + rnd() * 0.5, sy: 0.8 + rnd() * 0.7, wall: pick(WALLS), roof: pick(ROOFS) });
   }
 
-// overnight timeline per household (t is hours after 22:00)
-const clampT = (t: number) => Math.min(t, 7.5);
-for (const p of homes) {
-  const E = (t: number, status: Status, agent: string, text: string, conf: string | null) => p.events.push({ t: clampT(t), status, agent, text, conf });
-  const c = (lo: number, span: number) => (lo + rnd() * span).toFixed(2);
-  if (p.danger) {
-    p.tHit = 0.5 + rnd() * 0.6;
-    p.tPower = 6.4 + rnd() * 0.8;
-    E(p.tHit, 'unknown', 'Signal', 'power lost, no check-in yet', null);
-    if (rnd() < 0.1 + p.vuln / 340) {
-      const tS = p.tHit + 0.1 + rnd() * 1.6;
-      E(tS, 'p1', 'Triage · Nano', `SOS ${pick(SOS)} → P1`, c(0.86, 0.12));
-      const tA = tS + 0.08 + rnd() * 0.35;
-      const helper = pick(FIRST);
-      E(tA, 'enroute', 'Dispatch · Super', `P1 escalated to responders; ${helper} (truck, 0.4 km) sent too`, c(0.8, 0.15));
-      if (rnd() < 0.25) E(tA + 0.17, 'enroute', 'Dispatch · Super', `${helper} timed out at 10 min → next ring of helpers`, c(0.77, 0.1));
-      E(tA + 0.45 + rnd() * 1.1, 'safe', 'Check-in', 'reached by responders, family safe', null);
-    } else if (p.vuln >= 37 && rnd() < 0.8) {
-      const tP = p.tHit + 0.5;
-      E(tP, 'p2', 'Silent signal · Nano', `age ${p.age}${p.device ? ', powered device' : ''}${p.alone ? ', lives alone' : ''}, no contact 30 min → calling`, c(0.74, 0.2));
-      if (rnd() < 0.55) E(tP + 0.06 + rnd() * 0.25, 'safe', 'Voice · Nano', 'answered call: cold but okay; blankets requested', c(0.8, 0.15));
-      else {
-        const tA = tP + 0.12 + rnd() * 0.2;
-        E(tA, 'enroute', 'Dispatch · Super', `no answer → ${pick(FIRST)} next door sent for a wellness check`, c(0.81, 0.1));
-        E(tA + 0.3 + rnd() * 0.9, 'safe', 'Check-in', `${pick(['neighbor visit', 'neighbor visit', 'mesh radio'])}: safe, moved to warming center`, null);
-      }
-    } else E(p.tHit + 0.12 + Math.pow(rnd(), 2) * 3.6, 'safe', 'Check-in', `checked in by ${pick(CHANNEL)}`, null);
-  } else if (rnd() < 0.12) {
-    p.tHit = 0.8 + rnd() * 1.6;
-    p.tPower = p.tHit + 0.6 + rnd() * 1.8;
-    E(p.tHit, 'unknown', 'Signal', 'brief outage, no check-in yet', null);
-    E(p.tHit + 0.1 + rnd() * 1.1, 'safe', 'Check-in', `checked in by ${pick(CHANNEL)}`, null);
-  }
-  p.events.sort((a, b) => a.t - b.t);
-}
+// Nearest three homes: the arcs drawn for a household's safety net on the map.
 for (const p of homes)
   p.net = homes
     .filter((o) => o !== p && Math.abs(o.x - p.x) < 11 && Math.abs(o.z - p.z) < 11)
     .sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))
     .slice(0, 3);
 
-export function statusAt(p: Home, t: number): Status {
-  let s: Status = 'normal';
-  for (const e of p.events) {
-    if (e.t <= t) s = e.status;
-    else break;
-  }
-  return s;
-}
-export const powerOut = (p: Home, t: number) => p.tHit !== undefined && p.tPower !== undefined && t >= p.tHit && t < p.tPower;
-export function gapMin(p: Home, t: number) {
-  if (p.tHit === undefined || t < p.tHit || statusAt(p, t) === 'safe') return 0;
-  return Math.round((t - p.tHit) * 60);
-}
-
-export const allEvents = homes
-  .flatMap((p) => p.events.filter((e) => e.agent !== 'Signal').map((e) => ({ ...e, home: p })))
-  .sort((a, b) => a.t - b.t);
-export const lastSafeTime = Math.max(...homes.flatMap((p) => p.events.filter((e) => e.status === 'safe').map((e) => e.t)));
-
-export const fmtClock = (t: number) => {
-  const mins = Math.round(22 * 60 + t * 60) % (24 * 60);
-  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+/** 24-hour clock for a Date or a millisecond timestamp, local time. */
+export const fmtTime = (d: Date | number) => {
+  const x = typeof d === 'number' ? new Date(d) : d;
+  return `${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`;
 };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { homes, outerHomes, powerOut } from '../sim/world';
+import { homes, outerHomes } from '../sim/world';
 import { useMap } from '../state/store';
 import { live, heightFor } from './live';
 
@@ -70,12 +70,12 @@ export function Homes() {
   }, []);
 
   useFrame(() => {
-    const T = useMap.getState().T;
-    if (T !== lastT.current) {
-      lastT.current = T;
+    const { version, residents } = useMap.getState();
+    if (version !== lastT.current) {
+      lastT.current = version;
       homes.forEach((p, i) => {
         tmp.set(p.wall);
-        if (powerOut(p, T)) tmp.multiply(darkTint);
+        if (residents[i]?.powerOut) tmp.multiply(darkTint);
         bodies.current.setColorAt(i, tmp);
       });
       bodies.current.instanceColor!.needsUpdate = true;

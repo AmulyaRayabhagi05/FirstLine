@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { CityCanvas } from './scene/CityCanvas';
-import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, Intro, Timeline, Toolbar } from './hud/Hud';
+import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, IncidentReports, Intro, LiveBar, Toolbar } from './hud/Hud';
 import { Minimap } from './hud/Minimap';
 import { useMap } from './state/store';
 
@@ -38,7 +38,8 @@ export default function App() {
           <Toolbar />
           <DecisionTicker />
           <HouseholdCard />
-          <Timeline />
+          <LiveBar />
+          {selected === null && <IncidentReports />}
           <Minimap />
         </div>
       )}

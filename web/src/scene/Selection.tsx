@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { homes, statusAt } from '../sim/world';
+import { homes } from '../sim/world';
 import { useMap, STATUS_COLOR } from '../state/store';
 import { live } from './live';
 
@@ -30,15 +30,15 @@ export function Selection() {
 
   useFrame(({ clock }) => {
     if (!home) return;
-    const T = useMap.getState().T;
+    const { statuses } = useMap.getState();
     const hs = live.homeScale;
     edges.current.position.set(home.x, 0.8 * home.sy * hs, home.z);
     edges.current.rotation.y = home.rot;
     edges.current.scale.set(home.sx, home.sy * hs, home.sx);
     ring.current.scale.setScalar(reduce ? 1 : 1 + 0.08 * Math.sin(clock.elapsedTime * 3.3));
-    const mine = statusAt(home, T);
+    const mine = statuses[home.idx];
     for (const a of arcs) {
-      const s = statusAt(a.n, T);
+      const s = statuses[a.n.idx];
       (a.line.material as THREE.LineBasicMaterial).color.set(s === 'normal' ? '#ffffff' : STATUS_COLOR[s]);
       a.dot.visible = mine === 'enroute' || s === 'enroute';
       a.curve.getPoint(1 - ((clock.elapsedTime / 1.8 + a.off) % 1), a.dot.position);
