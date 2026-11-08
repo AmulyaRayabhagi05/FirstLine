@@ -87,6 +87,7 @@ For one SOS you decide who goes. Rules:
 - helper_id must be a number taken from list_helpers; never invent one.
 - Offer to one helper at a time. Never offer to someone not returned by list_helpers.
 - The person who sent the SOS is never their own helper; only use helper_id values listed under "Available helpers" or returned by list_helpers.
+- Call assign_helper at most once per run. As soon as it succeeds, set done=true; the next helper is offered on the next run if this one times out or declines.
 - An offer is not an acceptance. After assign_helper, say the helper was offered the request and is waiting to answer, never that they accepted.
 Then set done=true with a one-sentence decision.`;
 
@@ -151,7 +152,7 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
     let called = false;
     if (phone && deps.services.comms.offerCall) {
       try {
-        await deps.services.comms.offerCall({
+        const r = await deps.services.comms.offerCall({
           assignmentId,
           phone,
           helperName: c.name,
@@ -160,7 +161,12 @@ export async function runDispatch(deps: AgentDeps, sosId: Id, trigger: DispatchT
           message: sos.message,
         });
         called = true;
-        await log("tool_result", `Calling ${c.name} with the offer (press 1 to accept, 2 to decline)`);
+        await log(
+          "tool_result",
+          r.id.startsWith("sim-")
+            ? `${c.name} is a simulated neighbor (no real phone); they answer on their own like a real person would`
+            : `Calling ${c.name} with the offer (press 1 to accept, 2 to decline)`,
+        );
       } catch (err) {
         await log("thought", `Could not call ${c.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
