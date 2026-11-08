@@ -442,10 +442,17 @@ export async function startFlood(onProgress?: (done: number, total: number) => v
   return targets.length;
 }
 
-/** Demo: clear the flood by marking everyone who still needs help safe. */
+/**
+ * Demo: clear the flood by marking safe the people in the flood zone who still need help.
+ * Only the flood-zone homes startFlood touched: a real resident elsewhere who asked for help
+ * (from the app, a text or a call) must stay open until someone actually reaches them.
+ */
 export async function clearFlood(onProgress?: (done: number, total: number) => void) {
   if (!liveConn) throw new Error('Not connected');
-  const targets = useMap.getState().residents.flatMap((r) => (r ? r.members : [])).filter((m) => needsHelp(m.status) || m.status === 'enroute');
+  const { residents } = useMap.getState();
+  const targets = homes
+    .flatMap((h) => (h.danger && residents[h.idx] ? residents[h.idx]!.members : []))
+    .filter((m) => needsHelp(m.status) || m.status === 'enroute');
   let i = 0;
   for (const m of targets) {
     await liveConn.reducers.markSafe({ personId: m.id, note: 'flood demo cleared' });

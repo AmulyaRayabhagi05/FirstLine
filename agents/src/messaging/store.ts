@@ -64,6 +64,11 @@ export function normalizePhone(phone: string): string {
   return digits.length === 10 ? `1${digits}` : digits;
 }
 
+/** E.164 for dialing: the app stores numbers as typed ("4695048698"); Twilio wants "+14695048698". */
+export function toE164(phone: string): string {
+  return phone.trim().startsWith("+") ? `+${phone.replace(/\D/g, "")}` : `+${normalizePhone(phone)}`;
+}
+
 /** In-memory fake that mirrors the reducers' idempotency on client_id. */
 export class InMemoryChannelStore implements ChannelStore {
   readonly sos: PressSosArgs[] = [];

@@ -5,6 +5,7 @@
 
 import twilio from "twilio";
 import type { TwilioConfig, TwilioLike } from "./twilio.js";
+import { toE164 } from "./store.js";
 
 export interface OfferCallRequest {
   assignmentId: number;
@@ -55,7 +56,7 @@ function sayHangup(text: string) {
 export async function placeOfferCall(client: TwilioLike, cfg: TwilioConfig, r: OfferCallRequest): Promise<{ callSid: string }> {
   if (!cfg.fromNumber) throw new Error("TWILIO_FROM_NUMBER is not set");
   if (!cfg.publicUrl) throw new Error("PUBLIC_BASE_URL is not set (Twilio must reach /voice/offer)");
-  const call = await client.calls.create({ to: r.phone, from: cfg.fromNumber, twiml: offerTwiml(cfg, r), timeout: 25 });
+  const call = await client.calls.create({ to: toE164(r.phone), from: cfg.fromNumber, twiml: offerTwiml(cfg, r), timeout: 25 });
   return { callSid: call.sid };
 }
 
