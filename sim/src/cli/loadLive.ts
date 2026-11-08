@@ -4,6 +4,7 @@
 //
 //   npm run load-live -- --whoami                 print this loader's identity and exit
 //   npm run load-live -- --n 1000                 register 1000 residents and their safety nets
+//   npm run load-live -- --n 1000 --min-age 24    ...with everyone 24 or older (kids become adult relatives)
 //   npm run load-live -- --n 1000 --storm --speed 600 --to 240
 //                                                 ...then play storm minutes [0, 240) at 600x
 //   npm run load-live -- --n 1000 --storm-only --speed 240
@@ -39,7 +40,8 @@ const store = await SpacetimeStore.connect(cfg);
 console.log(`identity ${store.identityHex} on ${cfg.host} / ${cfg.dbName}`);
 if (args.whoami) process.exit(0);
 
-const world = generateWorld({ n, seed });
+const minAge = args["min-age"] !== undefined ? Number(args["min-age"]) : undefined;
+const world = generateWorld({ n, seed, minAge });
 console.log(summarize(world));
 
 let ids: IdMap;

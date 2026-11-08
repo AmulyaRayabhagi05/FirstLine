@@ -23,6 +23,8 @@ export const DEMO = {
 } as const;
 
 export interface GenerateOptions {
+  /** Raise anyone younger than this to an adult age (live demo maps); off by default so the measured numbers stay put. */
+  minAge?: number;
   n?: number;
   seed?: number;
 }
@@ -286,7 +288,9 @@ export function generateWorld(opts: GenerateOptions = {}): World {
     const h = addHousehold(b, nb, loc.lat, loc.lng);
     const lang = rng.weighted(nb.language);
     const last = rng.pick(LAST_NAMES[lang]);
-    const headAge = drawHeadAge(rng, nb.seniorBoost * (loc.nearSenior ? 6 : 1));
+    // With minAge set, anyone younger becomes an adult between minAge and minAge + 15.
+    const adult = (a: number) => (opts.minAge && a < opts.minAge ? opts.minAge + rng.int(0, 15) : a);
+    const headAge = adult(drawHeadAge(rng, nb.seniorBoost * (loc.nearSenior ? 6 : 1)));
 
     let size: number;
     if (headAge >= 65) size = rng.chance(loc.nearSenior ? 0.7 : 0.42) ? 1 : rng.chance(0.85) ? 2 : 3;
@@ -300,7 +304,7 @@ export function generateWorld(opts: GenerateOptions = {}): World {
       if (i === 1 && (headAge >= 65 || rng.chance(0.75))) age = Math.max(18, Math.min(98, Math.round(headAge + rng.normal(0, 4)))); // partner
       else if (headAge >= 65) age = rng.int(35, headAge - 20); // adult child living with parent
       else age = rng.int(0, Math.max(0, Math.min(17, headAge - 18))); // kids
-      randomPerson(b, h, age, lang, last, false);
+      randomPerson(b, h, adult(age), lang, last, false);
     }
   }
 
