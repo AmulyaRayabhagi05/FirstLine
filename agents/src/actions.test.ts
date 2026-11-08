@@ -133,7 +133,7 @@ describe("phone line", () => {
     await worker.idle();
     const a = new FirstLineVoiceAssistant({ store, llm, services }, { operatorNumbers: ["(414) 241-5496"] });
     const g = await a.greet({ callSid: "CA1", from: "+14142415496" });
-    expect(g.say).toMatch(/FirstLine operations\. Right now there are 1 open/);
+    expect(g.say).toMatch(/FirstLine operations\. Right now 1 people need help, with 1 open S O S events/);
   });
 
   it("gives the operator a named household's record and the retrieved guidance", async () => {
