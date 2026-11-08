@@ -1,0 +1,15 @@
+{
+  "name": "porchlight-agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "test:nemotron": "node test-nemotron.cjs"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {},
+  "devDependencies": {}
+}

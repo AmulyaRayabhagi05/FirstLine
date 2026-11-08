@@ -45,7 +45,7 @@ brev ls
 2. In another terminal, from the repo:
    ```bash
    cd agents
-   node test-nemotron.js
+   node test-nemotron.cjs
    ```
    You should see `Reply: OK ...` and a response time.
 

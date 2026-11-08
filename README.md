@@ -1,4 +1,4 @@
-# Hope
+# Porchlight (repo: Hope)
 
 Disaster-response app built at HackUTD. People in trouble send an SOS from their phone,
 responders see it on a live map, and Nemotron agents help triage and plan.
@@ -7,10 +7,11 @@ responders see it on a live map, and Nemotron agents help triage and plan.
 
 | Folder | What lives there |
 |---|---|
-| `server/` | SpacetimeDB module (Rust): tables and reducers, the backend |
+| `server/` | SpacetimeDB module (TypeScript): tables, reducers and timers, the backend |
 | `web/` | React map dashboard for responders |
 | `mobile/` | SOS app for people who need help |
 | `agents/` | Node.js worker that runs the Nemotron agents (triage, planning, tool use) |
+| `db/` | Tiger Data (Timescale) SQL: hypertables and aggregates |
 | `sim/` | Scripts that generate fake disaster data for demos and testing |
 | `docs/` | Setup guides and notes |
 

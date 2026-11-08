@@ -1,5 +1,5 @@
 // Smoke test: send one chat request to the Nemotron endpoint and print the reply.
-// Run from agents/:  node test-nemotron.js
+// Run from agents/:  node test-nemotron.cjs
 // Reads agents/.env (NEMOTRON_BASE_URL, NEMOTRON_API_KEY, NEMOTRON_FAST_MODEL).
 // Needs Node 21+ (built-in fetch and process.loadEnvFile). No npm packages.
 
