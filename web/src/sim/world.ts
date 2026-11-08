@@ -97,7 +97,7 @@ export const COMMS = [
   { name: 'Oak Cliff', x: -25, z: 32, c: '#e8283d' },
   { name: 'Bishop Arts', x: -47, z: -4, c: '#ff9a3c' },
   { name: 'Kessler Park', x: -30, z: -36, c: '#5aa9ff' },
-  { name: 'Cedars', x: 4, z: -12, c: '#b58cff' },
+  { name: 'Cedars', x: 4, z: -12, c: '#c9b27a' },
   { name: 'Deep Ellum', x: 32, z: -38, c: '#4fe08f' },
   { name: 'Lakewood', x: 46, z: 8, c: '#f4d35e' },
   { name: 'Pleasant Grove', x: 18, z: 34, c: '#62d6e8' },
@@ -122,7 +122,21 @@ const nearComm = (x: number, z: number) => {
   return b;
 };
 
-export type TimelineEvent = { t: number; status: Status; agent: string; text: string; conf: string | null };
+export type TimelineEvent = { t: number; status: Status; agent: string; text: string; conf: string | null; when?: string };
+export interface Resident {
+  id: number;
+  name: string;
+  age: number;
+  status: Status;
+  priority: string;
+  lastSeen?: Date;
+  medical: string;
+  phone: boolean;
+  mobility: string;
+  language: string;
+  livesAlone: boolean;
+  poweredDevice: boolean;
+}
 export interface Home {
   id: number;
   idx: number;
@@ -149,14 +163,17 @@ export interface Home {
   events: TimelineEvent[];
   net: Home[];
   top: number;
+  residents?: Resident[]; // live mode: the people registered in this household
+  alert?: boolean; // live mode: household is in the flood zone
 }
+export const isBlockedAt = (x: number, z: number) => isBlocked(x, z);
 export interface OuterHome { x: number; z: number; rot: number; sx: number; sy: number; wall: string; roof: string }
 
 const FIRST = ['Rosa', 'Earl', 'Mae', 'Luis', 'Doris', 'Henry', 'Ana', 'Walter', 'Grace', 'Tomas', 'June', 'Calvin', 'Irene', 'Marcus', 'Lupe', 'Ruth', 'Dale', 'Nora', 'Frank', 'Elena', 'Otis', 'Bea', 'Ray', 'Carmen'];
 const CHANNEL = ['app', 'SMS', 'voice call', 'neighbor visit', 'mesh radio'];
 const SOS = ['"agua entrando, mi mamá no puede caminar"', '"water at the back door, need help with dad"', '"power out, oxygen machine on battery"', '"car stuck, kids with me, water rising"', '"can\'t get mom down the stairs"'];
 const WALLS = ['#ffffff', '#e9f0ff', '#f2ece0', '#e3f0ea', '#efe6ee', '#dfe6f5'];
-const ROOFS = ['#1d2540', '#22283f', '#1b2a33', '#2a2236', '#252a2f', '#1a2236'];
+const ROOFS = ['#262d2f', '#2d2925', '#1f2b2b', '#2b2d31', '#30302b', '#22292c'];
 
 export const homes: Home[] = [];
 const S = 3.8;
@@ -264,6 +281,14 @@ export function gapMin(p: Home, t: number) {
   if (p.tHit === undefined || t < p.tHit || statusAt(p, t) === 'safe') return 0;
   return Math.round((t - p.tHit) * 60);
 }
+
+// The live data source swaps the household list in place; the simulated city is kept for fallback.
+export const SIM_HOMES = homes.slice();
+export function setHomes(list: Home[]) {
+  homes.splice(0, homes.length, ...list);
+  homes.forEach((h, i) => (h.idx = i));
+}
+export const world = { radius: CITY_R };
 
 export const allEvents = homes
   .flatMap((p) => p.events.filter((e) => e.agent !== 'Signal').map((e) => ({ ...e, home: p })))

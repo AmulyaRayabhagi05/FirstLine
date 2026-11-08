@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { homes, statusAt, type Status } from '../sim/world';
+import { CITY_R, SIM_HOMES, homes, setHomes, statusAt, world, type Status } from '../sim/world';
 
 export type DemoPhase = 'off' | 'sweep' | 'flatten' | 'play';
+export interface Decision { id: string; agent: string; text: string; when: Date; homeId: number | null; conf: number | null }
 
 export interface MapState {
   T: number; // hours after 22:00
@@ -28,6 +29,16 @@ export interface MapState {
   requestPan: (x: number, z: number) => void;
   intro: boolean;
   setIntro: (v: boolean) => void;
+  // live mode
+  mode: 'live' | 'sim';
+  conn: 'connecting' | 'live' | 'error' | 'off';
+  connError: string;
+  worldVersion: number;
+  liveInfo: { people: number; households: number; updatedAt: Date | null; needHelp: number };
+  decisions: Decision[];
+  setLive: (p: Partial<Pick<MapState, 'conn' | 'connError' | 'liveInfo' | 'decisions'>>) => void;
+  applyLiveStatuses: (s: Status[], relayout: boolean) => void;
+  useSim: () => void;
   layersOpen: boolean;
   setLayersOpen: (v: boolean) => void;
 }
@@ -65,6 +76,20 @@ export const useMap = create<MapState>((set, get) => ({
   requestPan: (x, z) => set((s) => ({ panTo: { x, z, n: (s.panTo?.n ?? 0) + 1 } })),
   intro: true,
   setIntro: (v) => set({ intro: v }),
+  mode: new URLSearchParams(location.search).has('sim') ? 'sim' : 'live',
+  conn: 'off',
+  connError: '',
+  worldVersion: 0,
+  liveInfo: { people: 0, households: 0, updatedAt: null, needHelp: 0 },
+  decisions: [],
+  setLive: (p) => set(p as Partial<MapState>),
+  applyLiveStatuses: (s, relayout) =>
+    set((st) => ({ statuses: s, version: st.version + 1, worldVersion: relayout ? st.worldVersion + 1 : st.worldVersion, selectedId: relayout ? null : st.selectedId })),
+  useSim: () => {
+    setHomes(SIM_HOMES);
+    world.radius = CITY_R;
+    set((st) => ({ mode: 'sim', conn: 'off', T: 2.2, statuses: computeStatuses(2.2), version: st.version + 1, worldVersion: st.worldVersion + 1, selectedId: null }));
+  },
   layersOpen: false,
   setLayersOpen: (v) => set({ layersOpen: v }),
 }));
@@ -80,18 +105,19 @@ export function counts(statuses: Status[]) {
 }
 
 export const STATUS_LABEL: Record<Status, string> = {
-  p1: 'P1 · help now',
+  p1: 'Needs help now',
   p2: 'Silent risk',
   unknown: 'Not reached',
-  enroute: 'Neighbor en route',
-  safe: 'Checked in safe',
-  normal: 'No alert',
+  enroute: 'Help on the way',
+  safe: 'Safe',
+  normal: 'Safe',
 };
+// Green is the normal state of the city. Red means a household needs someone; blue means help is moving.
 export const STATUS_COLOR: Record<Status, string> = {
-  p1: '#ff3b4e',
-  p2: '#ff9a3c',
-  unknown: '#f4d35e',
-  enroute: '#5aa9ff',
-  safe: '#4fe08f',
-  normal: '#5c5c6c',
+  p1: '#ff3347',
+  p2: '#ff5a4a',
+  unknown: '#ff8a7a',
+  enroute: '#4ea8ff',
+  safe: '#3ee08a',
+  normal: '#3ee08a',
 };

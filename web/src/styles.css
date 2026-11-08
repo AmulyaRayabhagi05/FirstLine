@@ -166,6 +166,31 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
 @keyframes rise-in { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
 @keyframes slide-in { from { opacity: 0; translate: 40px 0; } to { opacity: 1; translate: 0 0; } }
 
+/* resident profiles */
+.people { display: grid; gap: 10px; margin-top: 8px; }
+.person { border-left: 2px solid var(--border-light); padding-left: 8px; }
+.prow { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--cream); }
+.prow small { margin-left: auto; font-size: 7px; color: var(--dim); }
+.ptags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ptag { font-size: 7px; letter-spacing: 0.06em; padding: 2px 5px; border: 1px solid var(--border-light); color: var(--warm); }
+.ptag.risk { border-color: #6b3a3a; color: #f2b8b2; }
+.ptag.info { color: var(--muted); }
+
+/* live bar */
+.livebar { grid-template-columns: auto 1fr auto; left: calc(50% - 110px); width: min(640px, calc(100% - 2 * var(--gut) - 236px)); }
+.livebar .dot { width: 10px; height: 10px; background: var(--dim); }
+.livebar .dot.live { background: var(--safe); box-shadow: 0 0 10px var(--safe); animation: blink-soft 2s ease-in-out infinite; }
+.livebar .dot.connecting { background: var(--unk); }
+.livebar .dot.error { background: var(--brand); }
+.lb-title { font-size: 10px; letter-spacing: 0.1em; color: var(--cream); }
+.lb-sub { font-size: 9px; color: var(--muted); margin-top: 4px; }
+.lb-actions { display: flex; gap: 8px; align-items: center; }
+.lb-actions .btn { padding: 8px 10px; font-size: 9px; }
+.lb-q { font-size: 9px; color: var(--warm); max-width: 24ch; line-height: 1.5; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+@keyframes blink-soft { 50% { opacity: 0.45; } }
+@media (max-width: 900px) { .livebar { width: calc(100% - 2 * var(--gut)); grid-template-columns: auto 1fr; } .lb-actions { grid-column: 1 / -1; } }
+
 /* intro */
 .intro { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; text-align: center; padding-inline: var(--gut); background: linear-gradient(180deg, rgba(13,13,15,0.72), rgba(13,13,15,0.5) 45%, rgba(13,13,15,0.85)); }
 .introbox { max-width: 640px; display: grid; justify-items: center; gap: 14px; animation: drop-in 0.6s ease-out both; }

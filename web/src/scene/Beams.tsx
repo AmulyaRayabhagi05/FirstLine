@@ -5,8 +5,9 @@ import { homes, type Status } from '../sim/world';
 import { useMap, STATUS_COLOR } from '../state/store';
 import { live } from './live';
 
-const BEAM_H: Record<Status, number> = { p1: 30, p2: 20, unknown: 11, enroute: 15, safe: 1.6, normal: 0 };
-const DOT_S: Record<Status, number> = { p1: 1.6, p2: 1.3, unknown: 1.0, enroute: 1.1, safe: 0.55, normal: 0 };
+// Every home shows a calm green porch beam; trouble makes it tall and red.
+const BEAM_H: Record<Status, number> = { p1: 28, p2: 24, unknown: 20, enroute: 14, safe: 5.5, normal: 5.5 };
+const DOT_S: Record<Status, number> = { p1: 1.7, p2: 1.5, unknown: 1.35, enroute: 1.2, safe: 0.7, normal: 0.7 };
 const COLORS = Object.fromEntries(Object.entries(STATUS_COLOR).map(([k, v]) => [k, new THREE.Color(v)])) as Record<Status, THREE.Color>;
 const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -44,6 +45,11 @@ const dummy = new THREE.Object3D();
 
 // Porch beams in 3D; glowing dots on the 2D map. Height and pulse follow urgency.
 export function Beams() {
+  const worldVersion = useMap((s) => s.worldVersion);
+  return <BeamsInner key={worldVersion} />;
+}
+
+function BeamsInner() {
   const cores = useRef<THREE.InstancedMesh>(null!);
   const halos = useRef<THREE.InstancedMesh>(null!);
   const dots = useRef<THREE.InstancedMesh>(null!);
@@ -54,6 +60,7 @@ export function Beams() {
   const statuses = useMap((s) => s.statuses);
 
   useEffect(() => {
+    if (!homes.length || statuses.length !== homes.length) return;
     statuses.forEach((s, i) => {
       cores.current.setColorAt(i, COLORS[s]);
       halos.current.setColorAt(i, COLORS[s]);
@@ -73,8 +80,9 @@ export function Beams() {
     cores.current.visible = halos.current.visible = showBeams && beamA > 0;
     dots.current.visible = showBeams && dotMat.opacity > 0;
     const pulse = reduce ? 1 : 0.8 + 0.2 * Math.sin(clock.elapsedTime * 3.8);
+    if (!homes.length) return;
     homes.forEach((p, i) => {
-      const s = st[i];
+      const s = st[i] ?? 'normal';
       const urgent = s === 'p1' || s === 'p2';
       const h = BEAM_H[s] * (urgent ? pulse : 1);
       const top = p.top * hs;
@@ -83,7 +91,7 @@ export function Beams() {
       dummy.scale.set(1, Math.max(0.0001, h), 1);
       dummy.updateMatrix();
       cores.current.setMatrixAt(i, dummy.matrix);
-      const w = s === 'safe' ? 0.5 : 1;
+      const w = s === 'safe' || s === 'normal' ? 0.45 : 1;
       dummy.scale.set(w, Math.max(0.0001, h * 0.85), w);
       dummy.updateMatrix();
       halos.current.setMatrixAt(i, dummy.matrix);

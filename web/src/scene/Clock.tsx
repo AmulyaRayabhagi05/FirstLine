@@ -6,6 +6,7 @@ import { live } from './live';
 export function Clock() {
   useFrame((_, dt) => {
     const st = useMap.getState();
+    if (st.mode === 'live') return; // live mode shows the database as it is; there is no replay
     const step = Math.min(dt, 0.1);
     if (st.demo === 'sweep') {
       st.setT(Math.min(st.T + step * 0.22, 1.4));

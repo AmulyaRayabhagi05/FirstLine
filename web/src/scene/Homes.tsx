@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { homes, outerHomes, powerOut } from '../sim/world';
+import { homes, outerHomes, powerOut, world } from '../sim/world';
 import { useMap } from '../state/store';
 import { live, heightFor } from './live';
 
@@ -9,12 +9,12 @@ function windowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#1d2a3a';
+  g.fillStyle = '#26302f';
   g.fillRect(0, 0, 64, 64);
   // dithered wall, like a pixel-art facade
   for (let y = 0; y < 64; y += 2)
     for (let x = ((y / 2) % 2) * 2; x < 64; x += 4) {
-      g.fillStyle = '#22324a';
+      g.fillStyle = '#2c3836';
       g.fillRect(x, y, 2, 2);
     }
   const lit = ['#ffd27a', '#ffc35a', '#ffe3a3'];
@@ -46,7 +46,13 @@ const tmp = new THREE.Color();
 const darkTint = new THREE.Color('#1c2036');
 
 // All households as instanced houses (walls with lit windows + low roofs), plus the outer city to the horizon.
+// Re-mounts when the household list changes (live data arriving, or switching to the simulation).
 export function Homes() {
+  const worldVersion = useMap((s) => s.worldVersion);
+  return <HomesInner key={worldVersion} />;
+}
+
+function HomesInner() {
   const bodies = useRef<THREE.InstancedMesh>(null!);
   const roofs = useRef<THREE.InstancedMesh>(null!);
   const oBodies = useRef<THREE.InstancedMesh>(null!);
@@ -70,12 +76,16 @@ export function Homes() {
   }, []);
 
   useFrame(() => {
-    const T = useMap.getState().T;
-    if (T !== lastT.current) {
-      lastT.current = T;
+    const { T, mode, version } = useMap.getState();
+    const key = mode === 'live' ? version : T;
+    if (key !== lastT.current && homes.length) {
+      lastT.current = key;
+      const statuses = useMap.getState().statuses;
       homes.forEach((p, i) => {
         tmp.set(p.wall);
-        if (powerOut(p, T)) tmp.multiply(darkTint);
+        // lights go out in homes that lost power (simulation) or that need help in the live flood
+        const dark = mode === 'live' ? p.danger && (statuses[i] === 'p1' || statuses[i] === 'p2' || statuses[i] === 'unknown') : powerOut(p, T);
+        if (dark) tmp.multiply(darkTint);
         bodies.current.setColorAt(i, tmp);
       });
       bodies.current.instanceColor!.needsUpdate = true;
@@ -98,7 +108,8 @@ export function Homes() {
       b.computeBoundingSphere();
     };
     place(homes, bodies.current, roofs.current);
-    place(outerHomes, oBodies.current, oRoofs.current);
+    // the outer city starts where the households end
+    place(outerHomes.map((o) => (Math.hypot(o.x, o.z) < world.radius + 4 ? { ...o, sx: 0, sy: 0 } : o)), oBodies.current, oRoofs.current);
   });
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {

@@ -5,14 +5,12 @@ import { homes, statusAt } from '../sim/world';
 import { useMap, STATUS_COLOR } from '../state/store';
 import { live } from './live';
 
-const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(2.1, 1.6, 1.9));
 const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// The picked home: a glowing outline, a pulsing ring, and arcs to the three neighbors in its safety net.
+// The picked home: a pulsing ring on the ground, and arcs to the three neighbors in its safety net.
 export function Selection() {
   const id = useMap((s) => s.selectedId);
   const home = id === null ? null : homes.find((h) => h.id === id) ?? null;
-  const edges = useRef<THREE.LineSegments>(null!);
   const ring = useRef<THREE.Mesh>(null!);
   const arcs = useMemo(() => {
     if (!home) return [];
@@ -30,15 +28,14 @@ export function Selection() {
 
   useFrame(({ clock }) => {
     if (!home) return;
-    const T = useMap.getState().T;
+    const { T, mode, statuses } = useMap.getState();
+    const now = (h: typeof home) => (mode === 'live' ? statuses[h!.idx] ?? 'normal' : statusAt(h!, T));
     const hs = live.homeScale;
-    edges.current.position.set(home.x, 0.8 * home.sy * hs, home.z);
-    edges.current.rotation.y = home.rot;
-    edges.current.scale.set(home.sx, home.sy * hs, home.sx);
+    void hs;
     ring.current.scale.setScalar(reduce ? 1 : 1 + 0.08 * Math.sin(clock.elapsedTime * 3.3));
-    const mine = statusAt(home, T);
+    const mine = now(home);
     for (const a of arcs) {
-      const s = statusAt(a.n, T);
+      const s = now(a.n);
       (a.line.material as THREE.LineBasicMaterial).color.set(s === 'normal' ? '#ffffff' : STATUS_COLOR[s]);
       a.dot.visible = mine === 'enroute' || s === 'enroute';
       a.curve.getPoint(1 - ((clock.elapsedTime / 1.8 + a.off) % 1), a.dot.position);
@@ -48,9 +45,6 @@ export function Selection() {
   if (!home) return null;
   return (
     <group>
-      <lineSegments ref={edges} geometry={edgeGeo}>
-        <lineBasicMaterial color="#ffffff" />
-      </lineSegments>
       <mesh ref={ring} rotation-x={-Math.PI / 2} position={[home.x, 0.14, home.z]}>
         <ringGeometry args={[1.9, 2.25, 40]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.9} side={THREE.DoubleSide} />

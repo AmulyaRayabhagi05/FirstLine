@@ -2,13 +2,13 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useMap } from '../state/store';
-import { homes, clamp, lerp } from '../sim/world';
+import { homes, clamp, lerp, world } from '../sim/world';
 import { live, easeInOut } from './live';
 
 type Pose = { theta: number; phi: number; radius: number; tx: number; tz: number };
 const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const phiFor = (d: number) => lerp(0.02, 1.0, d);
-const radiusFor = (d: number) => lerp(128, 96, d);
+const radiusFor = (d: number) => lerp(128, 96, d) * Math.max(1, world.radius / 60) * (d < 0.5 ? 1 : 0.9);
 
 // Orbit camera with smooth fly-tos: rotate, pan, zoom, the 2D/3D slide, zoom to a home, and the demo sweep.
 export function CameraRig() {
@@ -56,6 +56,7 @@ export function CameraRig() {
         rig.current.target.set(-6, 0, 4);
       }
       if (s.panTo && s.panTo !== prev.panTo) flyTo({ tx: s.panTo.x, tz: s.panTo.z }, 700);
+      if (s.worldVersion !== prev.worldVersion && s.selectedId === null) flyTo({ phi: phiFor(s.dimTarget), radius: radiusFor(s.dimTarget), tx: 0, tz: 0 }, 1200);
       prev = s;
     });
   }, []);
@@ -74,8 +75,9 @@ export function CameraRig() {
       const s = r.radius * 0.0016;
       const c = Math.cos(r.theta);
       const n = Math.sin(r.theta);
-      r.target.x = clamp(r.target.x + (-c * dx - n * dy) * s, -80, 80);
-      r.target.z = clamp(r.target.z + (n * dx - c * dy) * s, -80, 80);
+      const lim = world.radius + 20;
+      r.target.x = clamp(r.target.x + (-c * dx - n * dy) * s, -lim, lim);
+      r.target.z = clamp(r.target.z + (n * dx - c * dy) * s, -lim, lim);
     };
     const down = (e: PointerEvent) => {
       el.setPointerCapture(e.pointerId);
@@ -95,7 +97,7 @@ export function CameraRig() {
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinch) r.radius = clamp((r.radius * pinch) / d, 12, 220);
+        if (pinch) r.radius = clamp((r.radius * pinch) / d, 12, 360);
         pinch = d;
         return;
       }
@@ -112,7 +114,7 @@ export function CameraRig() {
     };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      rig.current.radius = clamp(rig.current.radius * Math.exp(e.deltaY * 0.0011), 12, 220);
+      rig.current.radius = clamp(rig.current.radius * Math.exp(e.deltaY * 0.0011), 12, 360);
       anim.current = null;
       stopDemo();
     };

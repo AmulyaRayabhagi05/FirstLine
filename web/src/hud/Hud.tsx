@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { COMMS, allEvents, fmtClock, gapMin, homes, lastSafeTime, powerOut, statusAt, type Home } from '../sim/world';
+import { COMMS, allEvents, fmtClock, gapMin, homes, lastSafeTime, powerOut, statusAt, type Home, type Resident } from '../sim/world';
 import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL } from '../state/store';
-import { DATA_MODE } from '../data/spacetime';
+import { LIVE_DB, clearFlood, markHouseholdSafe, startFlood } from '../data/live';
 
 export function Wordmark() {
   return (
@@ -16,7 +16,29 @@ export function Wordmark() {
 export function CounterBadge() {
   const T = useMap((s) => s.T);
   const statuses = useMap((s) => s.statuses);
+  const mode = useMap((s) => s.mode);
+  const info = useMap((s) => s.liveInfo);
   const c = counts(statuses);
+  if (mode === 'live') {
+    const homesAtRisk = c.p1 + c.p2 + c.unknown;
+    return (
+      <section className="panel badge" aria-label="City overview">
+        <Wordmark />
+        <div className="counter">
+          <div className={`big ${homesAtRisk === 0 ? 'zero' : ''}`}>{homesAtRisk}</div>
+          <div className="cap">
+            {homesAtRisk === 0 ? 'All households safe' : 'Households need help'}
+            <span className="clock">{info.people.toLocaleString()} people</span>
+          </div>
+        </div>
+        <div className="mix">
+          <span style={{ color: STATUS_COLOR.safe }}>{(c.safe + c.normal).toLocaleString()} safe</span>
+          <span style={{ color: STATUS_COLOR.enroute }}>{c.enroute} help on the way</span>
+          <span style={{ color: STATUS_COLOR.p1 }}>{c.p1 + c.p2 + c.unknown} need help</span>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="panel badge" aria-label="Storm overview">
       <Wordmark />
@@ -39,6 +61,37 @@ export function CounterBadge() {
 
 // One line at the top for decisions a person should know about. It fades after a few seconds.
 export function DecisionTicker() {
+  const mode = useMap((s) => s.mode);
+  return mode === 'live' ? <LiveTicker /> : <SimTicker />;
+}
+
+function LiveTicker() {
+  const decisions = useMap((s) => s.decisions);
+  const latest = decisions[decisions.length - 1];
+  const [visible, setVisible] = useState(false);
+  const [seen, setSeen] = useState<string | null>(null);
+  useEffect(() => {
+    if (!latest || latest.id === seen) return;
+    const fresh = Date.now() - latest.when.getTime() < 60_000;
+    setSeen(latest.id);
+    if (!fresh) return;
+    setVisible(true);
+    const id = setTimeout(() => setVisible(false), 5000);
+    return () => clearTimeout(id);
+  }, [latest?.id]);
+  if (!latest) return null;
+  return (
+    <div className={`panel ticker ${visible ? 'on' : ''}`} role="status">
+      <span className="who">Nemotron · {latest.agent}</span>
+      <span className="nc">
+        {latest.text}
+        {latest.conf !== null && <span className="conf"> ({latest.conf.toFixed(2)})</span>}
+      </span>
+    </div>
+  );
+}
+
+function SimTicker() {
   const T = useMap((s) => s.T);
   const latest = useMemo(() => {
     const list = allEvents.filter((e) => e.t <= T && isKeyDecision(e));
@@ -85,7 +138,7 @@ export function Toolbar() {
         <button aria-pressed={s.dimTarget >= 0.5} onClick={() => s.setDim(1)}>3D</button>
       </div>
       <button className="panel tbtn" aria-expanded={s.layersOpen} onClick={() => s.setLayersOpen(!s.layersOpen)}>Layers</button>
-      <button className="panel tbtn red" onClick={startDemo} aria-pressed={demoOn}>{demoOn ? '■ Stop' : '▶ Demo'}</button>
+      {s.mode === 'sim' && <button className="panel tbtn red" onClick={startDemo} aria-pressed={demoOn}>{demoOn ? '■ Stop' : '▶ Replay'}</button>}
       {s.layersOpen && (
         <section className="panel layers" aria-label="Layers and legend">
           <div className="slide">
@@ -99,16 +152,14 @@ export function Toolbar() {
           </div>
           <div className="legend" aria-label="Legend">
             {([
-              ['p1', '!', 'P1 · help now'],
-              ['p2', '◆', 'Silent risk'],
-              ['unknown', '?', 'Not reached'],
-              ['enroute', '→', 'Neighbor en route'],
-              ['safe', '✓', 'Checked in safe'],
-            ] as const).map(([k, g, t]) => (
-              <div key={k}><span className="sq" style={{ background: STATUS_COLOR[k] }}>{g}</span>{t}</div>
+              ['safe', '✓', 'Safe', 'short green beam'],
+              ['p1', '!', 'Needs help', 'tall red beam, pulsing'],
+              ['enroute', '→', 'Help on the way', 'blue beam'],
+            ] as const).map(([k, g, t, d]) => (
+              <div key={k}><span className="sq" style={{ background: STATUS_COLOR[k] }}>{g}</span>{t}<small>{d}</small></div>
             ))}
           </div>
-          <div className="source">Data: {DATA_MODE === 'simulated' ? 'simulated replay' : 'live SpacetimeDB'}</div>
+          <div className="source">Data: {s.mode === 'sim' ? 'simulated replay' : `live · SpacetimeDB ${LIVE_DB}`}</div>
         </section>
       )}
     </div>
@@ -141,9 +192,11 @@ export function Intro() {
   if (!intro) return null;
   const s = STEPS[step];
   const last = step === STEPS.length - 1;
+  const mode = useMap.getState().mode;
   const enter = (demo: boolean) => {
     setIntro(false);
     const st = useMap.getState();
+    if (st.mode === 'live') return;
     if (demo) {
       st.setT(0);
       st.setDim(1);
@@ -159,12 +212,69 @@ export function Intro() {
         <p className="introline nc">{s.line}</p>
         <div className="introbtns">
           {!last && <button className="btn" onClick={() => setStep(step + 1)}>Next</button>}
-          {last && <button className="btn primary" onClick={() => enter(true)}>▶ Watch the night</button>}
-          {last && <button className="btn" onClick={() => enter(false)}>Explore the map</button>}
+          {last && mode === 'live' && <button className="btn primary" onClick={() => enter(false)}>Open the live map</button>}
+          {last && mode === 'sim' && <button className="btn primary" onClick={() => enter(false)}>Explore the map</button>}
+          {last && mode === 'sim' && <button className="btn" onClick={() => enter(true)}>Replay a flood night</button>}
         </div>
         <button className="skip" onClick={() => enter(false)}>Skip intro</button>
       </div>
     </div>
+  );
+}
+
+// Live mode: connection state, and the two demo controls for a flood (they write to the database).
+export function LiveBar() {
+  const conn = useMap((s) => s.conn);
+  const err = useMap((s) => s.connError);
+  const info = useMap((s) => s.liveInfo);
+  const useSim = useMap((s) => s.useSim);
+  const statuses = useMap((s) => s.statuses);
+  const [busy, setBusy] = useState<string>('');
+  const [confirm, setConfirm] = useState<'flood' | 'clear' | null>(null);
+  const atRisk = statuses.filter((s) => s === 'p1' || s === 'p2' || s === 'unknown' || s === 'enroute').length;
+  const run = async (kind: 'flood' | 'clear') => {
+    setConfirm(null);
+    try {
+      const n = kind === 'flood'
+        ? await startFlood((d, t) => setBusy(`Flooding… ${d}/${t}`))
+        : await clearFlood((d, t) => setBusy(`Marking safe… ${d}/${t}`));
+      setBusy(n ? '' : kind === 'flood' ? 'No safe households in the flood zone' : 'Nobody needs help');
+    } catch (e) {
+      setBusy(`Failed: ${(e as Error).message}`);
+    }
+  };
+  return (
+    <section className="panel timeline livebar" aria-label="Live status">
+      <div className={`dot ${conn}`} aria-hidden="true" />
+      <div className="lb-main">
+        <div className="lb-title">
+          {conn === 'live' ? 'Live' : conn === 'connecting' ? 'Connecting…' : 'Offline'} · SpacetimeDB {LIVE_DB}
+        </div>
+        <div className="lb-sub nc">
+          {conn === 'error'
+            ? err || 'Could not reach the database.'
+            : busy || (info.updatedAt ? `${info.households.toLocaleString()} households · updated ${info.updatedAt.toLocaleTimeString()}` : 'Waiting for data…')}
+        </div>
+      </div>
+      {conn === 'live' && confirm === null && (
+        <div className="lb-actions">
+          <button className="btn danger" onClick={() => setConfirm('flood')}>Start flood</button>
+          <button className="btn" disabled={atRisk === 0} onClick={() => setConfirm('clear')}>Clear flood</button>
+        </div>
+      )}
+      {confirm && (
+        <div className="lb-actions">
+          <span className="lb-q nc">{confirm === 'flood' ? 'Flood the zone? Residents there report needing help.' : 'Mark everyone who needs help as safe?'}</span>
+          <button className="btn danger" onClick={() => run(confirm)}>Yes</button>
+          <button className="btn" onClick={() => setConfirm(null)}>Cancel</button>
+        </div>
+      )}
+      {conn === 'error' && (
+        <div className="lb-actions">
+          <button className="btn" onClick={useSim}>Use simulated data</button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -201,6 +311,134 @@ function HouseIcon({ dark }: { dark: boolean }) {
 const CODE: Record<string, string> = { p1: 'P1', p2: 'P2', unknown: '?', enroute: '→', safe: '✓', normal: '—' };
 
 export function HouseholdCard() {
+  const mode = useMap((s) => s.mode);
+  return mode === 'live' ? <LiveCard /> : <SimCard />;
+}
+
+const LANG: Record<string, string> = { en: 'English', es: 'Spanish', vi: 'Vietnamese' };
+// What a responder needs to know about one person, at a glance. "risk" tags drive the priority score.
+function profileTags(r: Resident) {
+  const tags: { text: string; kind: 'risk' | 'info' }[] = [];
+  if (r.age >= 75) tags.push({ text: `Age ${r.age}`, kind: 'risk' });
+  if (r.mobility === 'cannot_walk') tags.push({ text: 'Cannot walk', kind: 'risk' });
+  else if (r.mobility === 'limited') tags.push({ text: 'Limited mobility', kind: 'risk' });
+  for (const m of r.medical.split(',').map((s) => s.trim()).filter(Boolean)) tags.push({ text: m[0].toUpperCase() + m.slice(1), kind: 'risk' });
+  if (r.poweredDevice) tags.push({ text: 'Powered device', kind: 'risk' });
+  if (r.livesAlone) tags.push({ text: 'Lives alone', kind: 'risk' });
+  if (!r.phone) tags.push({ text: 'No smartphone', kind: 'risk' });
+  if (r.language && r.language !== 'en') tags.push({ text: LANG[r.language] ?? r.language, kind: 'info' });
+  if (!tags.length) tags.push({ text: 'No risk factors', kind: 'info' });
+  return tags;
+}
+
+function LiveCard() {
+  const id = useMap((s) => s.selectedId);
+  const statuses = useMap((s) => s.statuses);
+  useMap((s) => s.version);
+  const select = useMap((s) => s.select);
+  const [note, setNote] = useState('');
+  useEffect(() => setNote(''), [id]);
+  const p: Home | undefined = id === null ? undefined : homes.find((h) => h.id === id);
+  if (!p) return null;
+  const s = statuses[p.idx] ?? 'normal';
+  const rs = p.residents ?? [];
+  const needs = rs.some((r) => r.status !== 'safe' && r.status !== 'normal');
+  const lastSeen = rs.map((r) => r.lastSeen?.getTime() ?? 0).reduce((a, b) => Math.max(a, b), 0);
+  const mins = lastSeen ? Math.round((Date.now() - lastSeen) / 60000) : null;
+  const flags = [p.age >= 75 && 'Age 75+', p.alone && 'Lives alone', p.device && 'Powered device', p.mobility && 'Limited mobility', !p.smart && 'No smartphone', p.spanish && 'Speaks Spanish'].filter(Boolean) as string[];
+  const netSafe = p.net.filter((n) => ['safe', 'normal'].includes(statuses[n.idx] ?? 'normal')).length;
+  const safe = async () => {
+    setNote('Marking safe…');
+    try {
+      await markHouseholdSafe(p, 'confirmed safe from the map');
+      setNote('Marked safe. The beam turns green when the database confirms it.');
+    } catch (e) {
+      setNote(`Could not mark safe: ${(e as Error).message}`);
+    }
+  };
+  return (
+    <section className="panel card" aria-live="polite" aria-label={`Household ${p.id}`}>
+      <button className="esc" onClick={() => select(null)} aria-label="Close and zoom out">ESC</button>
+      <div className="head">
+        <div className="avatar"><div><HouseIcon dark={needs && p.danger} /></div></div>
+        <div style={{ minWidth: 0 }}>
+          <span className="chip"><i style={{ background: p.danger ? 'var(--brand)' : 'var(--safe)' }} />{p.danger ? 'Flood zone' : 'Outside flood zone'}</span>
+          <div className="name" style={{ marginTop: 6 }}>Household #{p.id}</div>
+          <div className="sub">{rs.length} {rs.length === 1 ? 'resident' : 'residents'}</div>
+        </div>
+      </div>
+      <div className="lvl">
+        <div className="code" style={{ borderColor: STATUS_COLOR[s], color: STATUS_COLOR[s] }}>{CODE[s]}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="t">{STATUS_LABEL[s]}</div>
+          <div className="bar"><i style={{ width: `${Math.min(100, p.vuln)}%` }} /></div>
+          <div className="barcap">Priority score {p.vuln} · from the agent worker</div>
+        </div>
+      </div>
+      {flags.length > 0 && (
+        <div className="sect flags">{flags.map((f) => <span className="flag" key={f}><i />{f}</span>)}</div>
+      )}
+      <div className="sect grid3">
+        <div className="cell"><b>{rs.length}</b><span>Residents</span></div>
+        <div className="cell"><b>{mins === null ? '—' : mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`}</b><span>Last contact</span></div>
+        <div className="cell"><b>{netSafe}/{p.net.length}</b><span>Net safe</span></div>
+      </div>
+      <div className="sect">
+        <div className="label">Residents</div>
+        <div className="people">
+          {rs.map((r) => (
+            <div className="person" key={r.id}>
+              <div className="prow">
+                <span className="sq" style={{ background: STATUS_COLOR[r.status] }} />
+                <span className="nc pname">{r.name}, {r.age}</span>
+                <small>{STATUS_LABEL[r.status]}</small>
+              </div>
+              <div className="ptags">{profileTags(r).map((t) => <span key={t.text} className={`ptag ${t.kind}`}>{t.text}</span>)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {p.net.length > 0 && (
+        <div className="sect">
+          <div className="label">Safety net · arcs on the map</div>
+          <div className="net">
+            {p.net.map((n) => {
+              const ns = statuses[n.idx] ?? 'normal';
+              return (
+                <div key={n.id}>
+                  <span className="sq" style={{ background: STATUS_COLOR[ns] }} />
+                  <span><span className="nc">{n.name}</span> · #{n.id}</span>
+                  <small>{STATUS_LABEL[ns]}</small>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div className="sect">
+        <div className="label">What happened · {p.events.length}</div>
+        <ol className="log">
+          {p.events.length === 0 && <li className="nc">Nothing yet for this household.</li>}
+          {p.events.map((e, i) => (
+            <li key={i} className="nc">
+              <time>{e.when}</time>
+              {e.agent}: {e.text}
+              {e.conf && <span className="conf"> conf {e.conf}</span>}
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="actions">
+        <button className="btn primary" style={{ gridColumn: '1 / -1' }} disabled={!needs} onClick={safe}>Mark household safe</button>
+        <button className="btn" onClick={() => select(null)}>← City</button>
+        <button className="btn" onClick={() => setNote('Nemotron dispatch assigns helpers and escalates to responders; those actions come from the agent worker.')}>Who sends help?</button>
+      </div>
+      <p className="actnote nc">{note || 'Mark safe writes to the live database.'}</p>
+    </section>
+  );
+}
+
+function SimCard() {
   const id = useMap((s) => s.selectedId);
   const T = useMap((s) => s.T);
   const select = useMap((s) => s.select);
