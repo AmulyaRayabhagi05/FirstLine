@@ -1,5 +1,7 @@
 import { latLngToCell } from "h3-js";
 import {
+  type ActionKind,
+  type ActionRequest,
   ASSIGNMENT_TIMEOUT_MS,
   type AgentStep,
   type Assignment,
@@ -60,7 +62,10 @@ export class InMemoryStore implements FirstLineStore {
     signal: new Set<Listener<Signal>>(),
     timeout: new Set<Listener<Assignment>>(),
     declined: new Set<Listener<Assignment>>(),
+    checkIn: new Set<Listener<CheckIn>>(),
+    action: new Set<Listener<ActionRequest>>(),
   };
+  readonly actions: ActionRequest[] = [];
   /** Promises returned by listeners, so tests can await quiescence. */
   private pending = new Set<Promise<unknown>>();
 
@@ -237,6 +242,7 @@ export class InMemoryStore implements FirstLineStore {
       if (args.result === "safe") person.priority = "safe";
     }
     this.recountCells();
+    this.emit(this.listeners.checkIn, { ...row });
   }
 
   async reportSignal(personId: Id, kind: SignalKind, value: number): Promise<void> {
@@ -387,6 +393,24 @@ export class InMemoryStore implements FirstLineStore {
   async listIncidentReports() {
     return this.incidentReports.map((r) => ({ ...r }));
   }
+  async listPendingActions() {
+    return this.actions.filter((a) => a.state === "pending").map((a) => ({ ...a }));
+  }
+
+  /** What the dashboard's request_action reducer does (staff only in the module). */
+  async requestAction(personId: Id, action: ActionKind, note = ""): Promise<Id> {
+    const row: ActionRequest = { id: this.nextId(), personId, action, note, requestedBy: "staff", createdAt: this.clock(), state: "pending", result: "" };
+    this.actions.push(row);
+    this.emit(this.listeners.action, { ...row });
+    return row.id;
+  }
+
+  async finishAction(requestId: Id, state: "done" | "failed", result: string): Promise<void> {
+    const a = this.actions.find((x) => x.id === requestId);
+    if (!a) throw new Error(`action request ${requestId} not found`);
+    a.state = state;
+    a.result = result.slice(0, 4000);
+  }
 
   // ---------------- subscriptions ----------------
 
@@ -401,5 +425,11 @@ export class InMemoryStore implements FirstLineStore {
   }
   onAssignmentDeclined(l: Listener<Assignment>) {
     return this.subscribe(this.listeners.declined, l);
+  }
+  onCheckIn(l: Listener<CheckIn>) {
+    return this.subscribe(this.listeners.checkIn, l);
+  }
+  onActionRequest(l: Listener<ActionRequest>) {
+    return this.subscribe(this.listeners.action, l);
   }
 }

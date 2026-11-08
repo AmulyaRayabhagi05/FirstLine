@@ -37,3 +37,6 @@ and `add_viewer`, then redeploy.
   recreated). Then put the new URL in `NEMOTRON_BASE_URL` in `/opt/firstline/app/agents/.env` and
   `systemctl restart firstline-worker`. Check with `sudo -u firstline node test-nemotron.cjs` in that folder.
 - The worker code in `/opt/firstline/app` was copied up by hand; update it the same way and restart.
+- Phone line: the Twilio number's voice webhook is `https://207-148-5-196.sslip.io/voice/inbound`.
+  Numbers in `VOICE_OPERATOR_NUMBERS` (the verified phone) get the operator briefing; a resident's
+  registered phone gets their own household; anyone else gets safety guidance only.

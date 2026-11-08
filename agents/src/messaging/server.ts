@@ -2,10 +2,13 @@
 //   POST /sms            inbound SMS
 //   POST /voice/result   Gather action of a check-in call
 //   POST /voice/status   call status callback
+//   POST /voice/inbound  someone calls the FirstLine number (conversation with Nemotron)
+//   POST /voice/converse each spoken turn of that conversation
 //   GET  /health
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { handleInboundText } from "./inbound.js";
+import { handleConverse, handleInboundCall, speakAndHangup, type VoiceAssistant } from "./inbound-voice.js";
 import { inboundLimiter, type RateLimiter } from "./ratelimit.js";
 import type { ChannelStore } from "./store.js";
 import { emptyTwiml, isValidTwilioRequest, smsTwiml, type TwilioConfig } from "./twilio.js";
@@ -16,6 +19,8 @@ export interface ServerDeps extends VoiceDeps {
   cfg: TwilioConfig;
   /** Per-phone-number limit on inbound SMS (default 10 per 10 minutes). */
   limiter?: RateLimiter;
+  /** Answers inbound calls; without it the line says to call 911 and hangs up. */
+  assistant?: VoiceAssistant;
 }
 
 const MAX_BODY = 64 * 1024;
@@ -76,6 +81,26 @@ export function createMessagingHandler(deps: ServerDeps) {
           person,
         });
         return send(res, 200, smsTwiml(outcome.reply));
+      }
+
+      if (url.pathname === "/voice/inbound" || url.pathname === "/voice/converse") {
+        const from = form.From ?? "";
+        const callSid = form.CallSid ?? "";
+        if (url.pathname === "/voice/inbound") {
+          if (!limiter.allow(`call:${from}`)) return send(res, 200, speakAndHangup("Please try again in a few minutes. If this is an emergency, call 9 1 1.", "en"));
+          return send(res, 200, await handleInboundCall(deps.assistant, deps.cfg, { callSid, from }));
+        }
+        const lang = url.searchParams.get("lang") === "es" ? "es" : "en";
+        const twiml = await handleConverse(deps.assistant, deps.cfg, {
+          callSid,
+          from,
+          speech: form.SpeechResult,
+          digits: form.Digits,
+          turn: Number(url.searchParams.get("turn") ?? 1),
+          empty: Number(url.searchParams.get("empty") ?? 0),
+          lang,
+        });
+        return send(res, 200, twiml);
       }
 
       const personId = Number(url.searchParams.get("personId"));

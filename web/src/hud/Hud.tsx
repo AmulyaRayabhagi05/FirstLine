@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COMMS, fmtTime, homes } from '../sim/world';
-import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type AgentLine } from '../state/store';
-import { SPACETIME_DB, SPACETIME_HOST, clearFlood, markHouseholdSafe, signIn, signOut, startFlood } from '../data/live';
+import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type ActionKind, type AgentLine } from '../state/store';
+import { SPACETIME_DB, SPACETIME_HOST, clearFlood, markHouseholdSafe, requestAction, signIn, signOut, startFlood } from '../data/live';
 
 export function Wordmark() {
   return (
@@ -347,15 +347,49 @@ export function HouseholdCard() {
     r.medical && r.medical,
   ].filter(Boolean) as string[];
   const netSafe = r.net.filter((n) => n.status === 'safe' || n.status === 'normal').length;
-  const act = (k: string) =>
-    setNote(
-      {
-        call: `Would call ${r.name}: "Press 1 if you're okay, 2 if you need help."`,
-        escalate: `Would escalate ${r.name} to responders as P1, after one-click human approval.`,
-        neighbor: `Would ask ${r.net[0]?.name ?? 'a neighbor'} to check on ${r.name}. A responder approves first.`,
-        claim: `Would build this household's timeline (${r.log.length} events, power ${r.powerOut ? 'out' : 'on'}) for a faster claim.`,
-      }[k] ?? '',
-    );
+  // What Nemotron already chose for this household (it acts on its own; the buttons are overrides).
+  const live = r.assignment && (r.assignment.state === 'offered' || r.assignment.state === 'accepted');
+  const pick: ActionKind | null =
+    r.escalated ? 'escalate' :
+    live ? 'send_neighbor' :
+    r.triage ? (r.triage.needs === 'professional' ? 'escalate' : 'send_neighbor') :
+    s === 'unknown' || s === 'p2' ? 'call' :
+    null;
+  const pickText =
+    r.escalated ? `Escalated to professional responders${live ? `, and ${r.assignment!.helper} is ${r.assignment!.state === 'accepted' ? 'on the way' : 'offered the visit'}` : ''}.` :
+    live ? `Sent ${r.assignment!.helper} (ring ${r.assignment!.ring}) to check on them.` :
+    r.triage ? `Triaged ${r.triage.priority}; next step: ${r.triage.needs === 'professional' ? 'escalate to responders' : 'send a neighbor'}.` :
+    pick === 'call' ? 'No contact yet: the silent-signal agent will call or ask a neighbor to knock.' :
+    null;
+  const pending = r.actions.find((a) => a.state === 'pending');
+  const latest = r.actions[0];
+  const ACT_LABEL: Record<ActionKind, string> = {
+    respond: 'Nemotron response',
+    call: 'Check-in call',
+    escalate: 'Escalation',
+    send_neighbor: 'Neighbor dispatch',
+    claim_timeline: 'Claim timeline',
+  };
+  const act = async (k: ActionKind) => {
+    if (viewer) return setNote('Staff sign-in required to send the agents.');
+    setNote(`${ACT_LABEL[k]}: sent to the agents…`);
+    try {
+      await requestAction(r, k);
+    } catch (e) {
+      setNote(`Could not send: ${(e as Error).message}`);
+    }
+  };
+  const btn = (k: ActionKind, label: string, sub: string, cls = 'btn') => (
+    <button
+      className={`${cls}${pick === k ? ' picked' : ''}`}
+      disabled={viewer || !!pending}
+      title={viewer ? 'Staff sign-in required' : pick === k ? "Nemotron's pick" : undefined}
+      onClick={() => act(k)}
+    >
+      {label}
+      <small>{pick === k ? "Nemotron's pick" : sub}</small>
+    </button>
+  );
 
   return (
     <section className="panel card" aria-live="polite" aria-label={`Household ${r.householdId}`}>
@@ -395,6 +429,32 @@ export function HouseholdCard() {
             <div>{r.triage.reason}</div>
             <div className="muted">{r.triage.model}</div>
           </div>
+        </div>
+      )}
+      {pickText && (
+        <div className="sect">
+          <div className="label">Nemotron's call</div>
+          <div className="triage nc pick">{pickText}</div>
+        </div>
+      )}
+      {(pending || latest) && (
+        <div className="sect">
+          <div className="label">Agents · {ACT_LABEL[(pending ?? latest)!.action]} · {fmtTime((pending ?? latest)!.at)}</div>
+          <div className="triage nc">
+            {pending ? (
+              <span className="muted">Nemotron is working on it…</span>
+            ) : (
+              <span style={{ color: latest!.state === 'failed' ? STATUS_COLOR.p1 : undefined }}>
+                {latest!.action === 'claim_timeline' ? 'Timeline ready below.' : latest!.result}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {r.claimTimeline && (
+        <div className="sect">
+          <div className="label">Claim timeline · Nemotron · {fmtTime(r.claimTimeline.at)}</div>
+          <pre className="timeline nc">{r.claimTimeline.text.replace(/^Claim timeline:\s*/, '')}</pre>
         </div>
       )}
       {(r.assignment || r.keyPass) && (
@@ -459,11 +519,12 @@ export function HouseholdCard() {
         </ol>
       </div>
       <div className="actions">
-        <button className="btn warm" onClick={() => act('call')}>Call now<small>Automated · free</small></button>
-        <button className="btn danger" onClick={() => act('escalate')}>Escalate<small>P1 · needs approval</small></button>
-        <button className="btn" onClick={() => act('claim')}>Claim timeline</button>
+        {btn('respond', 'Let Nemotron decide', 'triage + dispatch', 'btn primary')}
+        {btn('call', 'Call now', 'automated voice', 'btn warm')}
+        {btn('escalate', 'Escalate', 'to responders', 'btn danger')}
+        {btn('send_neighbor', 'Send neighbor', 'safety net, ring by ring')}
+        {btn('claim_timeline', 'Claim timeline', 'Nemotron writes it')}
         <button className="btn" onClick={() => select(null)}>← City</button>
-        <button className="btn primary" onClick={() => act('neighbor')}>Send neighbor</button>
         <button
           className="btn"
           disabled={viewer || !r.members.some((m) => m.status !== 'safe' && m.status !== 'normal')}
@@ -481,7 +542,12 @@ export function HouseholdCard() {
           Mark safe<small>{viewer ? 'staff only' : 'writes to the database'}</small>
         </button>
       </div>
-      <p className="actnote nc">{note || 'Actions show the flow only. No calls or messages are sent from the dashboard.'}</p>
+      <p className="actnote nc">
+        {note ||
+          (viewer
+            ? 'Read-only view. Nemotron acts on its own; staff can send it from these buttons.'
+            : 'Nemotron acts on its own. These buttons send the agents now; real texts and calls go out.')}
+      </p>
     </section>
   );
 }

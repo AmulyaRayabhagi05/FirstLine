@@ -30,6 +30,8 @@ const PERSON_STATUS = ['unknown', 'safe', 'needs_help'];
 const PERSON_PRIORITY = ['P1', 'P2', 'P3', 'safe', 'unknown'];
 const SOS_CHANNEL = ['app', 'sms', 'voice', 'mesh'];
 const CHECK_IN_KIND = ['app', 'voice', 'sms', 'neighbor_visit', 'mesh'];
+const ACTION_KIND = ['respond', 'call', 'escalate', 'send_neighbor', 'claim_timeline'];
+const ACTION_STATE = ['done', 'failed'];
 const CHECK_IN_RESULT = ['safe', 'needs_help', 'no_answer'];
 const SIGNAL_KIND = ['phone_offline', 'power_out', 'low_temp', 'no_motion', 'geofence_entered'];
 const TRIAGE_NEEDS = ['neighbor', 'professional'];
@@ -261,6 +263,22 @@ const audit_log = table(
   }
 );
 
+// A staff request from the dashboard card (call, escalate, send a neighbor, claim timeline, or
+// "let Nemotron decide"). The worker picks it up, runs the agents and writes back the outcome.
+const action_request = table(
+  { name: 'action_request' },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    person_id: t.u64().index('btree'),
+    action: t.string(),
+    note: t.string(),
+    requested_by: t.string(),
+    created_at: t.timestamp(),
+    state: t.string(), // pending | done | failed
+    result: t.string(),
+  }
+);
+
 // Scheduled tables
 const assignment_timeout_schedule = table(
   { name: 'assignment_timeout_schedule' },
@@ -306,6 +324,7 @@ const spacetimedb = schema(
   incident_report,
   agent_step,
   audit_log,
+  action_request,
   assignment_timeout_schedule,
   key_pass_expiry_schedule,
   recount_schedule,
@@ -895,8 +914,10 @@ export const accept_assignment = spacetimedb.reducer(
     requireHelperOrAgent(ctx, a.helper_id);
     if (a.state !== 'offered') fail(`assignment is ${a.state}, not offered`);
     ctx.db.assignment.id.update({ ...a, state: 'accepted' });
+    // An escalated SOS stays escalated: a neighbor on the way does not take it off the
+    // professional responders' list.
     const s = ctx.db.sos_event.id.find(a.sos_id);
-    if (s && (s.state === 'open' || s.state === 'escalated')) {
+    if (s && s.state === 'open') {
       ctx.db.sos_event.id.update({ ...s, state: 'assigned' });
     }
   }
@@ -1012,6 +1033,38 @@ export const escalate = spacetimedb.reducer(
     if (s.state === 'resolved') fail(`sos ${sos_id} is already resolved`);
     ctx.db.sos_event.id.update({ ...s, state: 'escalated' });
     audit(ctx, 'escalate', `sos:${sos_id} ${reason}`.slice(0, 500));
+  }
+);
+
+export const request_action = spacetimedb.reducer(
+  { person_id: t.u64(), action: t.string(), note: t.string() },
+  (ctx, { person_id, action, note }) => {
+    if (!isStaff(ctx)) fail('only staff may ask the agents to act');
+    oneOf('action', action, ACTION_KIND);
+    text('note', note);
+    getPerson(ctx, person_id);
+    const r = ctx.db.action_request.insert({
+      id: 0n,
+      person_id,
+      action,
+      note,
+      requested_by: actorOf(ctx),
+      created_at: ctx.timestamp,
+      state: 'pending',
+      result: '',
+    });
+    audit(ctx, 'request_action', `action:${r.id} ${action} person:${person_id}`);
+  }
+);
+
+export const finish_action = spacetimedb.reducer(
+  { request_id: t.u64(), state: t.string(), result: t.string() },
+  (ctx, { request_id, state, result }) => {
+    requireWorker(ctx);
+    oneOf('state', state, ACTION_STATE);
+    const r = ctx.db.action_request.id.find(request_id);
+    if (!r) fail(`action request ${request_id} not found`);
+    ctx.db.action_request.id.update({ ...r, state, result: result.slice(0, 4000) });
   }
 );
 
@@ -1261,6 +1314,11 @@ export const ops_incident_report = spacetimedb.view(
 );
 export const ops_agent_step = spacetimedb.view({ name: 'ops_agent_step', public: true }, t.array(agent_step.rowType), ctx =>
   (canRead(ctx) ? ctx.from.agent_step : ctx.from.agent_step.where(r => r.id.eq(NO_ROW))).build()
+);
+export const ops_action_request = spacetimedb.view(
+  { name: 'ops_action_request', public: true },
+  t.array(action_request.rowType),
+  ctx => (canRead(ctx) ? ctx.from.action_request : ctx.from.action_request.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_audit_log = spacetimedb.view({ name: 'ops_audit_log', public: true }, t.array(audit_log.rowType), ctx =>
   (isStaff(ctx) ? ctx.from.audit_log : ctx.from.audit_log.where(r => r.id.eq(NO_ROW))).build()

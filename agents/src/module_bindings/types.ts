@@ -10,6 +10,18 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const ActionRequest = __t.object("ActionRequest", {
+  id: __t.u64(),
+  personId: __t.u64(),
+  action: __t.string(),
+  note: __t.string(),
+  requestedBy: __t.string(),
+  createdAt: __t.timestamp(),
+  state: __t.string(),
+  result: __t.string(),
+});
+export type ActionRequest = __Infer<typeof ActionRequest>;
+
 export const AgentStep = __t.object("AgentStep", {
   id: __t.u64(),
   agent: __t.string(),
@@ -66,6 +78,9 @@ export const Config = __t.object("Config", {
   keyPassTtlSecs: __t.u32(),
 });
 export type Config = __Infer<typeof Config>;
+
+export const DashPerson = __t.object("DashPerson", {});
+export type DashPerson = __Infer<typeof DashPerson>;
 
 export const HexCell = __t.object("HexCell", {
   h3Cell: __t.string(),
@@ -145,6 +160,9 @@ export const NetMember = __t.object("NetMember", {
   skills: __t.string(),
 });
 export type NetMember = __Infer<typeof NetMember>;
+
+export const OpsActionRequest = __t.object("OpsActionRequest", {});
+export type OpsActionRequest = __Infer<typeof OpsActionRequest>;
 
 export const OpsAgentStep = __t.object("OpsAgentStep", {});
 export type OpsAgentStep = __Infer<typeof OpsAgentStep>;
@@ -262,4 +280,10 @@ export const Triage = __t.object("Triage", {
   createdAt: __t.timestamp(),
 });
 export type Triage = __Infer<typeof Triage>;
+
+export const Viewer = __t.object("Viewer", {
+  identity: __t.identity(),
+  addedAt: __t.timestamp(),
+});
+export type Viewer = __Infer<typeof Viewer>;
 

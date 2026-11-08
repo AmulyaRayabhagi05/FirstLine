@@ -10,6 +10,7 @@ import { DbConnection } from "../module_bindings/index";
 import type AgentStepRowT from "../module_bindings/ops_agent_step_table";
 import type AssignmentRowT from "../module_bindings/ops_assignment_table";
 import type CheckInRowT from "../module_bindings/ops_check_in_table";
+import type ActionRequestRowT from "../module_bindings/ops_action_request_table";
 import type HexCellRowT from "../module_bindings/hex_cell_table";
 import type HouseholdRowT from "../module_bindings/ops_household_table";
 import type IncidentReportRowT from "../module_bindings/ops_incident_report_table";
@@ -21,6 +22,7 @@ import type TriageRowT from "../module_bindings/ops_triage_table";
 import type {
   AgentStep,
   Assignment,
+  ActionRequest,
   CheckIn,
   CheckInArgs,
   FirstLineStore,
@@ -96,6 +98,7 @@ export const WORKER_QUERIES = [
   "SELECT * FROM ops_triage",
   "SELECT * FROM ops_assignment",
   "SELECT * FROM ops_incident_report",
+  "SELECT * FROM ops_action_request",
 ];
 
 // ---------------- row conversion ----------------
@@ -161,6 +164,17 @@ const toSos = (r: SosRow): SosEvent => ({
   channel: r.channel as SosEvent["channel"],
   createdAt: r.createdAt.toDate(),
   state: r.state as SosEvent["state"],
+});
+type ActionRequestRow = Infer<typeof ActionRequestRowT>;
+const toActionRequest = (r: ActionRequestRow): ActionRequest => ({
+  id: n(r.id),
+  personId: n(r.personId),
+  action: r.action as ActionRequest["action"],
+  note: r.note,
+  requestedBy: r.requestedBy,
+  createdAt: r.createdAt.toDate(),
+  state: r.state as ActionRequest["state"],
+  result: r.result,
 });
 const toCheckIn = (r: CheckInRow): CheckIn => ({
   id: n(r.id),
@@ -241,6 +255,8 @@ export class SpacetimeStore implements FirstLineStore {
     signal: new Set<Listener<Signal>>(),
     timeout: new Set<Listener<Assignment>>(),
     declined: new Set<Listener<Assignment>>(),
+    checkIn: new Set<Listener<CheckIn>>(),
+    action: new Set<Listener<ActionRequest>>(),
   };
   /** Fires on any cache change; used to wait for a reducer's rows to arrive. */
   private readonly changeWaiters = new Set<() => void>();
@@ -314,7 +330,15 @@ export class SpacetimeStore implements FirstLineStore {
       if (oldRow.state === "offered" && newRow.state === "timed_out") this.emit(this.listeners.timeout, toAssignment(newRow));
       if (oldRow.state === "offered" && newRow.state === "declined") this.emit(this.listeners.declined, toAssignment(newRow));
     });
-    for (const t of [db.opsPerson, db.opsTriage, db.opsIncidentReport, db.opsCheckIn, db.hexCell, db.opsSafetyNet, db.opsHousehold] as const) {
+    db.opsCheckIn.onInsert((_ctx, row) => {
+      changed();
+      this.emit(this.listeners.checkIn, toCheckIn(row));
+    });
+    db.opsActionRequest.onInsert((_ctx, row) => {
+      changed();
+      if (row.state === "pending") this.emit(this.listeners.action, toActionRequest(row));
+    });
+    for (const t of [db.opsPerson, db.opsTriage, db.opsIncidentReport, db.hexCell, db.opsSafetyNet, db.opsHousehold] as const) {
       (t as { onInsert(cb: () => void): void }).onInsert(changed);
     }
   }
@@ -452,6 +476,10 @@ export class SpacetimeStore implements FirstLineStore {
     if (this.ownSteps.length > 5000) this.ownSteps.splice(0, 1000);
   }
 
+  async finishAction(requestId: Id, state: "done" | "failed", result: string): Promise<void> {
+    await this.conn.reducers.finishAction({ requestId: big(requestId), state, result: result.slice(0, 4000) });
+  }
+
   async setPriority(personId: Id, priority: PriorityCategory, priorityScore: number): Promise<void> {
     await this.conn.reducers.setPriority({ personId: big(personId), priority, priorityScore });
   }
@@ -520,6 +548,9 @@ export class SpacetimeStore implements FirstLineStore {
   async listIncidentReports() {
     return [...this.conn.db.opsIncidentReport.iter()].map(toReport);
   }
+  async listPendingActions() {
+    return [...this.conn.db.opsActionRequest.iter()].filter((r) => r.state === "pending").map(toActionRequest);
+  }
 
   // ---------------- subscriptions ----------------
 
@@ -538,5 +569,11 @@ export class SpacetimeStore implements FirstLineStore {
   }
   onAssignmentDeclined(l: Listener<Assignment>) {
     return this.sub(this.listeners.declined, l);
+  }
+  onCheckIn(l: Listener<CheckIn>) {
+    return this.sub(this.listeners.checkIn, l);
+  }
+  onActionRequest(l: Listener<ActionRequest>) {
+    return this.sub(this.listeners.action, l);
   }
 }

@@ -126,6 +126,21 @@ export interface Assignment {
   ring: number;
 }
 
+export type ActionKind = "respond" | "call" | "escalate" | "send_neighbor" | "claim_timeline";
+export type ActionState = "pending" | "done" | "failed";
+
+/** A staff request from the dashboard card; the worker runs the agents and writes back the result. */
+export interface ActionRequest {
+  id: Id;
+  personId: Id;
+  action: ActionKind;
+  note: string;
+  requestedBy: string;
+  createdAt: Date;
+  state: ActionState;
+  result: string;
+}
+
 export interface IncidentReport {
   id: Id;
   h3Cell: string; // res 8
@@ -239,6 +254,8 @@ export interface FirstLineStore {
   escalate(sosId: Id, reason: string): Promise<void>;
   saveIncidentReport(args: SaveIncidentReportArgs): Promise<Id>;
   logAgentStep(args: LogAgentStepArgs): Promise<void>;
+  /** Close a dashboard action request with what the agents did. */
+  finishAction(requestId: Id, state: Exclude<ActionState, "pending">, result: string): Promise<void>;
   setPriority(personId: Id, priority: PriorityCategory, priorityScore: number): Promise<void>;
   setCellAlert(h3Cell: string, alertLevel: string): Promise<void>;
   setCellCensus(h3Cell: string, censusElderlyEstimate: number): Promise<void>;
@@ -260,12 +277,17 @@ export interface FirstLineStore {
   listCells(): Promise<HexCell[]>;
   listAgentSteps(subject?: string): Promise<AgentStep[]>;
   listIncidentReports(): Promise<IncidentReport[]>;
+  listPendingActions(): Promise<ActionRequest[]>;
 
   // ---- subscriptions (return an unsubscribe function) ----
   onSos(listener: Listener<SosEvent>): Unsubscribe;
   onSignal(listener: Listener<Signal>): Unsubscribe;
   onAssignmentTimeout(listener: Listener<Assignment>): Unsubscribe;
   onAssignmentDeclined(listener: Listener<Assignment>): Unsubscribe;
+  /** New check-in rows (any result). */
+  onCheckIn(listener: Listener<CheckIn>): Unsubscribe;
+  /** New dashboard action requests. */
+  onActionRequest(listener: Listener<ActionRequest>): Unsubscribe;
 }
 
 /** The module times out an offered assignment after this long. */
