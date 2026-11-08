@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { TraceView } from './hud/TraceView';
 import { CityCanvas } from './scene/CityCanvas';
 import { ErrorBoundary } from './hud/ErrorBoundary';
 import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, IncidentReports, Intro, LiveBar, SignIn, Toolbar } from './hud/Hud';
@@ -9,6 +10,14 @@ export default function App() {
   const selected = useMap((s) => s.selectedId);
   const intro = useMap((s) => s.intro);
   const signedIn = useMap((s) => s.signedIn);
+  const [route, setRoute] = useState(location.hash);
+  useEffect(() => {
+    // A direct link to the Trace page skips the intro story.
+    if (location.hash.startsWith('#/trace')) useMap.getState().setIntro(false);
+    const on = () => setRoute(location.hash);
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -30,6 +39,10 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // The Trace page is its own screen (no 3D city), on the same live connection.
+  // Opened directly, it waits for the intro and sign-in, then shows.
+  if (route.startsWith('#/trace') && signedIn && !intro) return <TraceView />;
 
   return (
     <>
