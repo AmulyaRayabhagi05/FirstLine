@@ -19,7 +19,7 @@ export type ParsedMessage =
   | { kind: "free"; text: string }
   | { kind: "malformed"; text: string; reason: string };
 
-const COORD = /(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/;
+const COORD = /(?<![\d.])(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)(?![\d.])/;
 const PEOPLE = /\b(\d{1,3})\s*(?:ppl|people|persons?|personas?)\b/i;
 const PERSON_ID = /#(\d+)\b/;
 
