@@ -328,7 +328,11 @@ function ReasoningModal({ r, status, onClose }: { r: Resident; status: Status; o
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
   const steps = filter === 'all' ? r.reasoning : r.reasoning.filter((e) => e.kind === 'decision');
-  useEffect(() => end.current?.scrollIntoView({ block: 'end' }), [steps.length]);
+  // Block body on purpose: newer Chrome returns a Promise from scrollIntoView, and React would
+  // treat any returned value as a cleanup function and crash calling it.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end' });
+  }, [steps.length]);
   const agents = [...new Set(r.reasoning.map((e) => agentName(e.agent)))];
   return createPortal(
     <div className="rmodal-back" onClick={onClose}>
