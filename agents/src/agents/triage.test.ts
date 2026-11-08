@@ -42,8 +42,11 @@ describe("triage tolerance to real model output", () => {
       ],
     });
     const out = await runTriage({ store, llm, services: stubServices() }, sos);
-    expect(out).toMatchObject({ source: "model", priority: "P1", needs: "professional", urgency: 5, confidence: 0.9 });
+    expect(out).toMatchObject({ source: "model", priority: "P1", needs: "professional", urgency: 5 });
+    // The model said 0.9, but it cited no guidance, so the computed confidence is lower.
+    expect(out.confidence).toBeLessThan(0.75);
     const steps = await store.listAgentSteps(`sos:${sos.id}`);
+    expect(steps.find((s) => s.content.startsWith("Confidence"))?.content).toMatch(/✓ keyword rules agree on P1.*✗ no guidance cited/);
     expect(steps.some((s) => /has not been called yet/.test(s.content))).toBe(true);
   });
 

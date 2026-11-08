@@ -151,7 +151,7 @@ export function systemPrompt(instructions: string, tools: Tool[]): string {
     describeTools(tools),
     "",
     "Reply with ONLY one JSON object, no prose, in this shape:",
-    '{"thought": "<one short sentence>", "tool": "<tool name or null>", "args": {<tool args>}, "done": <true|false>, "decision": "<final decision, when done>", "confidence": <0..1>}',
+    '{"thought": "<one short sentence>", "tool": "<tool name or null>", "args": {<tool args>}, "done": <true|false>, "decision": "<final decision, when done>", "confidence": <0..1, only when done>}',
     "Call one tool per reply. You will get the tool's result, then reply again. Results are saved ONLY by calling the save tool; \"decision\" is just a short sentence. Set done=true only when your work is finished.",
   ].join("\n");
 }
@@ -181,7 +181,8 @@ export async function runAgentLoop(a: LoopArgs): Promise<LoopResult> {
       return { finished: false, calls, model, error: msg };
     }
     messages.push({ role: "assistant", content: JSON.stringify(reply) });
-    if (reply.thought) await log("thought", reply.thought, reply.confidence ?? undefined);
+    // Self-reported confidence is not logged: agents that need one compute it from evidence (confidence.ts).
+    if (reply.thought) await log("thought", reply.thought);
 
     let observation: string | undefined;
     if (reply.tool) {
@@ -222,7 +223,7 @@ export async function runAgentLoop(a: LoopArgs): Promise<LoopResult> {
     }
     if (reply.done) {
       const decision = asText(reply.decisionValue) || reply.thought || "done";
-      await log("decision", decision, reply.confidence ?? undefined);
+      await log("decision", decision);
       return { finished: true, decision, decisionValue: reply.decisionValue, confidence: reply.confidence ?? undefined, calls, model };
     }
     messages.push({

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { traceHref } from './TraceView';
 import { createPortal } from 'react-dom';
 import { COMMS, fmtTime, homes, type Status } from '../sim/world';
 import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type ActionKind, type AgentLine, type Resident } from '../state/store';
@@ -105,6 +106,7 @@ export function Toolbar() {
       </div>
       <button className="panel tbtn" aria-expanded={s.layersOpen} onClick={() => s.setLayersOpen(!s.layersOpen)}>Layers</button>
       <button className="panel tbtn red" onClick={startDemo} aria-pressed={demoOn}>{demoOn ? '■ Stop' : '▶ Tour'}</button>
+      <a className="panel tbtn" href={traceHref()} title="Every case, hop by hop: which agent called which tool">Trace</a>
       {s.liveInfo.viewer ? (
         <button className="panel tbtn" onClick={() => { s.setWantStaff(true); s.setSignedIn(false); }} title="Sign in with a staff access key to act on households">Staff sign-in</button>
       ) : (
@@ -650,6 +652,11 @@ export function HouseholdCard() {
             <button className="linkbtn" onClick={() => setShowReasoning(true)} aria-haspopup="dialog">
               Show reasoning · {r.reasoning.length}
             </button>
+          )}
+          {r.members[0] && (
+            <a className="linkbtn" href={traceHref(r.members[0].id.toString())} title="This case hop by hop: which agent called which tool">
+              Open trace
+            </a>
           )}
         </div>
         <ol className="log">

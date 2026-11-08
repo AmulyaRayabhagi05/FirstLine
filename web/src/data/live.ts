@@ -8,6 +8,7 @@
 
 import { DbConnection } from '../module_bindings';
 import { DALLAS_NEIGHBORHOODS, homes, project, type Status } from '../sim/world';
+import { setTraceRows } from './trace';
 import { useMap, type ActionKind, type AgentLine, type AssignmentInfo, type IncidentReport, type KeyPassInfo, type Resident, type TriageInfo, type WaveStat } from '../state/store';
 import { toMapStatus } from './spacetime';
 
@@ -383,6 +384,14 @@ function snapshot(conn: DbConnection) {
       escalated: waveSos.filter((s) => s.state === 'escalated').length,
     };
   }
+
+  setTraceRows({
+    people: people.map((p) => ({ id: key(p.id), name: p.name, age: p.age, status: p.status, priority: p.priority })),
+    sos: sosAll.map((s) => ({ id: key(s.id), personId: key(s.personId), channel: s.channel, message: s.message, state: s.state, at: ms(s.createdAt)! })),
+    assignments: assignments.map((a) => ({ sosId: key(a.sosId), helperId: key(a.helperId), state: a.state, ring: a.ring, at: ms(a.offeredAt)! })),
+    checkIns: checkIns.map((c) => ({ personId: key(c.personId), kind: c.kind, result: c.result, note: c.note, at: ms(c.createdAt)! })),
+    steps: steps.map((s) => ({ agent: s.agent, subject: s.subject, kind: s.kind, content: s.content, conf: s.confidence ?? null, at: ms(s.createdAt)! })),
+  });
 
   const st = useMap.getState();
   st.setLive({ residents, feed, reports });
