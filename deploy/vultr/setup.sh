@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# One-time setup of a fresh Ubuntu 24.04 Vultr server. Run as root:  bash setup.sh <site-host>
-# Installs Node 22, Caddy and the firewall, creates the firstline user, clones the repo and
-# installs the worker. Secrets (agents/.env, the worker token, the Brev key) are copied in by
-# deploy.sh afterwards, never by this script.
+# One-time setup of a fresh Ubuntu 24.04 Vultr server, run by `deploy.sh <ip> --setup <site-host>`
+# after it has uploaded the code to /srv/firstline/repo (the GitHub repo is private, so the server
+# never clones it). Installs Node 22, Caddy and the firewall, creates the firstline user and the
+# services. Secrets (agents/.env, the worker token) are copied in by deploy.sh, never by this.
 set -euo pipefail
 SITE_HOST="${1:?usage: setup.sh <site-host, e.g. 203-0-113-7.sslip.io>}"
-REPO="${REPO:-https://github.com/Spikestar05/FirstLine.git}"
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y
-apt-get install -y ca-certificates curl gnupg git ufw debian-keyring debian-archive-keyring apt-transport-https
+apt-get install -y ca-certificates curl gnupg ufw debian-keyring debian-archive-keyring apt-transport-https
 
 # Node 22
 if ! command -v node >/dev/null || ! node -v | grep -q '^v22'; then
@@ -31,17 +30,12 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-# App user, folders, repo
+# App user and folders (the code is already in /srv/firstline/repo)
 id firstline >/dev/null 2>&1 || useradd --create-home --shell /bin/bash firstline
 mkdir -p /srv/firstline/web /etc/firstline
 chown -R firstline:firstline /srv/firstline
+chgrp firstline /etc/firstline
 chmod 750 /etc/firstline
-if [ ! -d /srv/firstline/repo/.git ]; then
-  sudo -u firstline git clone "$REPO" /srv/firstline/repo
-else
-  sudo -u firstline git -C /srv/firstline/repo pull --ff-only
-fi
-sudo -u firstline npm ci --prefix /srv/firstline/repo/agents
 
 # Dedicated SSH key for the Brev tunnel (its public half goes on the Brev box)
 sudo -u firstline mkdir -p /home/firstline/.ssh
