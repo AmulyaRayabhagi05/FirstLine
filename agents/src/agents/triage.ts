@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { computePriority } from "../priority.js";
 import type { Id, Needs, Person, Priority, SosEvent } from "../store/types.js";
-import { called, confidence, defineTool, runAgentLoop, stepLogger, type AgentDeps } from "./loop.js";
+import { confidence, defineTool, runAgentLoop, stepLogger, type AgentDeps } from "./loop.js";
 
 export interface TriageOutcome {
   sosId: Id;
@@ -16,15 +16,54 @@ export interface TriageOutcome {
   reason: string;
   confidence: number;
   source: "model" | "rules";
+  /** True when the model said less than P1 and the rules safety floor raised it. */
+  raisedBySafetyFloor: boolean;
 }
+
+const needsEnum = z.preprocess((v) => {
+  if (typeof v !== "string") return v;
+  const t = v.trim().toLowerCase();
+  if (/(prof|ems|emergency|rescue|fire|medic|911|first.?respond)/.test(t)) return "professional";
+  if (/(neigh|vecin|community|volunteer)/.test(t)) return "neighbor";
+  return t;
+}, z.enum(["neighbor", "professional"]));
+
+const priorityEnum = z.preprocess((v) => {
+  if (typeof v === "number") return `P${v}`;
+  if (typeof v !== "string") return v;
+  const m = v.trim().toUpperCase().match(/^P?\s*([123])\b/);
+  return m ? `P${m[1]}` : v.trim().toUpperCase();
+}, z.enum(["P1", "P2", "P3"]));
 
 const saveTriageInput = z.object({
   urgency: z.coerce.number().int().min(1).max(5),
-  needs: z.enum(["neighbor", "professional"]),
-  priority: z.enum(["P1", "P2", "P3"]),
-  reason: z.string().min(3),
+  needs: needsEnum,
+  priority: priorityEnum,
+  reason: z.preprocess((v) => (Array.isArray(v) ? v.join("; ") : v), z.string().min(3)),
   confidence,
 });
+
+/** Accept a triage answer the model put in `decision` (or nested one level) instead of save_triage. */
+function salvageTriage(v: unknown): z.infer<typeof saveTriageInput> | undefined {
+  let obj = v;
+  if (typeof obj === "string") {
+    try {
+      obj = JSON.parse(obj);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!obj || typeof obj !== "object") return undefined;
+  const direct = saveTriageInput.safeParse(obj);
+  if (direct.success) return direct.data;
+  for (const inner of Object.values(obj as Record<string, unknown>)) {
+    if (inner && typeof inner === "object") {
+      const p = saveTriageInput.safeParse(inner);
+      if (p.success) return p.data;
+    }
+  }
+  return undefined;
+}
 
 const INSTRUCTIONS = `You are the TRIAGE agent for Porchlight, a disaster-response network of neighbors.
 You read one SOS message (any language: Spanish, Vietnamese, English, ...) and decide:
@@ -33,8 +72,28 @@ You read one SOS message (any language: Spanish, Vietnamese, English, ...) and d
 - priority: "P1" life threat now, "P2" serious and getting worse, "P3" supplies or a ride
 - reason: one short English sentence a dispatcher can read (translate the key facts)
 - confidence 0..1
-Rising water, someone who cannot walk, oxygen or powered medical devices without power, chest pain, fire or injury push toward P1 and professional.
+Priority follows urgency: urgency 5 = P1, urgency 3-4 = P2, urgency 1-2 = P3.
+It is urgency 5 / P1 / professional when ANY of these is true:
+- water is entering or rising in the home and anyone there cannot walk or cannot leave on their own
+- someone is trapped, unconscious, not breathing, bleeding badly, has chest pain, or there is a fire
+- oxygen or a powered medical device has no power
+Example: "agua entrando, mi mamá no puede caminar" (water coming in, my mom cannot walk) => urgency 5, professional, P1.
 Steps: first call get_person_profile, then optionally get_weather, then call save_triage, then set done=true.`;
+
+/**
+ * Safety floor: if the keyword rules see a life threat (urgency 5) the saved priority is never
+ * lower than P1. Logged as its own step so the panel shows the override.
+ */
+function applySafetyFloor(v: z.infer<typeof saveTriageInput>, message: string, person?: Person) {
+  const r = ruleTriage(message, person);
+  if (r.urgency < 5 || v.priority === "P1") return { value: v, raised: false as const };
+  return {
+    value: { ...v, urgency: 5, priority: "P1" as const, needs: "professional" as const },
+    raised: true as const,
+    from: v.priority,
+    why: r.reason,
+  };
+}
 
 export const profileSummary = (p: Person) => ({
   person_id: p.id,
@@ -87,6 +146,15 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
   let modelName = "unknown";
 
   const save = async (v: z.infer<typeof saveTriageInput>, source: "model" | "rules", model: string) => {
+    let raised = false;
+    if (source === "model") {
+      const f = applySafetyFloor(v, sos.message, await store.getPerson(sos.personId));
+      if (f.raised) {
+        await log("decision", `Safety floor: model said ${f.from}, raised to P1 because rules detected a life threat (${f.why})`);
+        v = f.value;
+        raised = true;
+      }
+    }
     const triageId = await store.saveTriage({ sosId: sos.id, personId: sos.personId, ...v, model });
     const person = await store.getPerson(sos.personId);
     if (person) {
@@ -99,7 +167,7 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
       });
       await store.setPriority(person.id, v.priority, pr.score);
     }
-    saved = { sosId: sos.id, personId: sos.personId, triageId, ...v, source };
+    saved = { sosId: sos.id, personId: sos.personId, triageId, ...v, source, raisedBySafetyFloor: raised };
     return { triage_id: triageId, saved: true };
   };
 
@@ -145,13 +213,35 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
   };
 
   const task = `SOS #${sos.id} from person ${sos.personId} via ${sos.channel} at ${sos.createdAt.toISOString()}:\n"${sos.message}"`;
-  const result = await runAgentLoop({ agent: "triage", subject, deps: capturingDeps, instructions: INSTRUCTIONS, task, tools });
+  const result = await runAgentLoop({
+    agent: "triage",
+    subject,
+    deps: capturingDeps,
+    instructions: INSTRUCTIONS,
+    task,
+    tools,
+    requiredTools: ["save_triage"],
+  });
 
-  if (!saved || !called(result, "save_triage")) {
+  if (!saved) {
+    const salvaged = salvageTriage(result.decisionValue);
+    if (salvaged) {
+      await save(salvaged, "model", modelName);
+      await log(
+        "decision",
+        `Saved the model's final answer (it skipped save_triage): ${salvaged.priority}, urgency ${salvaged.urgency}, needs ${salvaged.needs}.`,
+        salvaged.confidence,
+      );
+    }
+  }
+  if (!saved) {
+    const why = result.error
+      ? `model error: ${result.error.slice(0, 160)}`
+      : "model finished without a valid save_triage";
     const person = await store.getPerson(sos.personId);
     const r = ruleTriage(sos.message, person);
     await save(r, "rules", "rules");
-    await log("decision", `Fallback rules: ${r.priority}, urgency ${r.urgency}, needs ${r.needs}. ${r.reason}`, r.confidence);
+    await log("decision", `Fallback rules (${why}): ${r.priority}, urgency ${r.urgency}, needs ${r.needs}. ${r.reason}`, r.confidence);
   }
   return saved!;
 }

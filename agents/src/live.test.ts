@@ -47,6 +47,7 @@ describe.skipIf(!LIVE)("live Nemotron", () => {
     const steps = await store.listAgentSteps(`sos:${sosId}`);
     console.log(steps.map((s) => `${s.agent}/${s.kind}: ${s.content}`).join("\n"));
     console.log({ triage, dispatch });
+    if (triage.raisedBySafetyFloor) console.warn("[live] model said less than P1; safety floor raised it");
 
     expect(triage.source).toBe("model");
     expect(triage.priority).toBe("P1");
