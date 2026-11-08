@@ -67,6 +67,9 @@ export const Config = __t.object("Config", {
 });
 export type Config = __Infer<typeof Config>;
 
+export const DashPerson = __t.object("DashPerson", {});
+export type DashPerson = __Infer<typeof DashPerson>;
+
 export const HexCell = __t.object("HexCell", {
   h3Cell: __t.string(),
   totalPeople: __t.u32(),
@@ -262,4 +265,10 @@ export const Triage = __t.object("Triage", {
   createdAt: __t.timestamp(),
 });
 export type Triage = __Infer<typeof Triage>;
+
+export const Viewer = __t.object("Viewer", {
+  identity: __t.identity(),
+  addedAt: __t.timestamp(),
+});
+export type Viewer = __Infer<typeof Viewer>;
 

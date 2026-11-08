@@ -1,0 +1,15 @@
+# Static dashboard. SITE_HOST is e.g. 203-0-113-7.sslip.io (free DNS that maps to the IP) or a
+# real domain; Caddy gets and renews the HTTPS certificate on its own.
+{$SITE_HOST} {
+	root * /srv/firstline/web
+	encode gzip
+	try_files {path} /index.html
+	file_server
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}

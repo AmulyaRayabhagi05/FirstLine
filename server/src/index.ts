@@ -69,6 +69,15 @@ const staff = table(
   }
 );
 
+/** Read-only identities (the public dashboard): may read the dashboard views, may call nothing. */
+const viewer = table(
+  { name: 'viewer' },
+  {
+    identity: t.identity().primaryKey(),
+    added_at: t.timestamp(),
+  }
+);
+
 const person = table(
   { name: 'person' },
   {
@@ -283,6 +292,7 @@ const spacetimedb = schema(
   {
   config,
   staff,
+  viewer,
   person,
   household,
   hex_cell,
@@ -363,6 +373,7 @@ type Reader = {
   db: {
     config: { id: { find(id: number): { owner: Identity; worker: Identity | undefined } | null | undefined } };
     staff: { identity: { find(identity: Identity): unknown } };
+    viewer: { identity: { find(identity: Identity): unknown } };
   };
 };
 
@@ -373,6 +384,16 @@ function isStaff(ctx: Reader): boolean {
   if (c.owner.isEqual(ctx.sender)) return true;
   if (c.worker !== undefined && c.worker.isEqual(ctx.sender)) return true;
   return !!ctx.db.staff.identity.find(ctx.sender);
+}
+
+/** A read-only viewer identity (the public dashboard). */
+function isViewer(ctx: Reader): boolean {
+  return !!ctx.db.viewer.identity.find(ctx.sender);
+}
+
+/** Staff or viewer: may read the dashboard views (everything but ops_person and ops_audit_log). */
+function canRead(ctx: Reader): boolean {
+  return isStaff(ctx) || isViewer(ctx);
 }
 
 /** True when the caller registered this person (phones are anonymous identities today). */
@@ -580,6 +601,26 @@ export const remove_staff = spacetimedb.reducer(
   }
 );
 
+/** Owner-only: let a read-only identity (the public dashboard) read the dashboard views. */
+export const add_viewer = spacetimedb.reducer(
+  { identity: t.identity() },
+  (ctx, { identity }) => {
+    if (!isOwner(ctx)) fail('only the module owner may add viewers');
+    if (ctx.db.viewer.identity.find(identity)) return;
+    ctx.db.viewer.insert({ identity, added_at: ctx.timestamp });
+    audit(ctx, 'add_viewer', identity.toHexString());
+  }
+);
+
+/** Owner-only: remove a viewer identity (rotate a leaked or retired dashboard token). */
+export const remove_viewer = spacetimedb.reducer(
+  { identity: t.identity() },
+  (ctx, { identity }) => {
+    if (!isOwner(ctx)) fail('only the module owner may remove viewers');
+    if (ctx.db.viewer.identity.delete(identity)) audit(ctx, 'remove_viewer', identity.toHexString());
+  }
+);
+
 /** Owner-only: shorten timers for demos and tests. 0 keeps the current value. */
 export const set_timing = spacetimedb.reducer(
   { assignment_timeout_secs: t.u32(), key_pass_ttl_secs: t.u32() },
@@ -630,6 +671,9 @@ export const register_person = spacetimedb.reducer(
     text('phone', a.phone, 40);
     text('language', a.language, 20);
     const h3 = cellFor(a.lat, a.lng);
+    // The viewer token ships in the public dashboard, so it must never own people (owning them
+    // would let anyone with the token act for them).
+    if (isViewer(ctx)) fail('viewer identities are read-only');
     if (!isStaff(ctx)) {
       let mine = 0;
       for (const p of ctx.db.person.iter()) if (isSelf(ctx, p)) mine++;
@@ -1172,6 +1216,8 @@ export const log_unlock = spacetimedb.reducer(
 // Views (how clients read the private tables)
 //
 // ops_<table>: every row for the owner, the worker and staff; no rows for anyone else.
+//   Viewers (read-only public dashboard) also read them, except ops_person (they get
+//   dash_person, without phone numbers or identities) and ops_audit_log.
 //   The worker subscribes to these instead of the tables (agents/src/store/spacetime.ts).
 // my_<table>: only rows that belong to the caller's identity (people it registered, their
 //   households, SOS events and safety nets, plus the assignments, SOS events and key passes
@@ -1185,39 +1231,44 @@ export const ops_person = spacetimedb.view({ name: 'ops_person', public: true },
   (isStaff(ctx) ? ctx.from.person : ctx.from.person.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_household = spacetimedb.view({ name: 'ops_household', public: true }, t.array(household.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.household : ctx.from.household.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.household : ctx.from.household.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_safety_net = spacetimedb.view({ name: 'ops_safety_net', public: true }, t.array(safety_net.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.safety_net : ctx.from.safety_net.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.safety_net : ctx.from.safety_net.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_sos_event = spacetimedb.view({ name: 'ops_sos_event', public: true }, t.array(sos_event.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.sos_event : ctx.from.sos_event.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.sos_event : ctx.from.sos_event.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_check_in = spacetimedb.view({ name: 'ops_check_in', public: true }, t.array(check_in_table.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.check_in : ctx.from.check_in.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.check_in : ctx.from.check_in.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_signal = spacetimedb.view({ name: 'ops_signal', public: true }, t.array(signal.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.signal : ctx.from.signal.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.signal : ctx.from.signal.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_triage = spacetimedb.view({ name: 'ops_triage', public: true }, t.array(triage.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.triage : ctx.from.triage.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.triage : ctx.from.triage.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_assignment = spacetimedb.view({ name: 'ops_assignment', public: true }, t.array(assignment.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.assignment : ctx.from.assignment.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.assignment : ctx.from.assignment.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_key_pass = spacetimedb.view({ name: 'ops_key_pass', public: true }, t.array(key_pass.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.key_pass : ctx.from.key_pass.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.key_pass : ctx.from.key_pass.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_incident_report = spacetimedb.view(
   { name: 'ops_incident_report', public: true },
   t.array(incident_report.rowType),
-  ctx => (isStaff(ctx) ? ctx.from.incident_report : ctx.from.incident_report.where(r => r.id.eq(NO_ROW))).build()
+  ctx => (canRead(ctx) ? ctx.from.incident_report : ctx.from.incident_report.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_agent_step = spacetimedb.view({ name: 'ops_agent_step', public: true }, t.array(agent_step.rowType), ctx =>
-  (isStaff(ctx) ? ctx.from.agent_step : ctx.from.agent_step.where(r => r.id.eq(NO_ROW))).build()
+  (canRead(ctx) ? ctx.from.agent_step : ctx.from.agent_step.where(r => r.id.eq(NO_ROW))).build()
 );
 export const ops_audit_log = spacetimedb.view({ name: 'ops_audit_log', public: true }, t.array(audit_log.rowType), ctx =>
   (isStaff(ctx) ? ctx.from.audit_log : ctx.from.audit_log.where(r => r.id.eq(NO_ROW))).build()
+);
+
+/** People for the dashboard: staff and viewers, with phone numbers and identities blanked. */
+export const dash_person = spacetimedb.view({ name: 'dash_person', public: true }, t.array(person.rowType), ctx =>
+  canRead(ctx) ? [...ctx.db.person.iter()].map(p => ({ ...p, phone: '', identity: undefined })) : []
 );
 
 type ViewDb = { sender: Identity; db: { person: { iter(): Iterable<{ id: bigint; identity: Identity | undefined; household_id: bigint }> } } };
