@@ -29,7 +29,7 @@ async function setup(llm = new FakeLlm()) {
   const ana = await store.registerPerson(base("Ana Ruiz", 32.777, -96.7975, { phone: "+15550000003" }));
   await store.setSafetyNet(lee.personId, [{ memberId: ana.personId, ring: 1, skills: "truck" }]);
   await store.checkIn({ clientId: "ana-ok", personId: ana.personId, kind: "app", result: "safe", note: "" });
-  const worker = new AgentWorker({ store, llm, services }, { silentSignalEveryMs: 0, reportsEveryMs: 0 }).start();
+  const worker = new AgentWorker({ store, llm, services }, { silentSignalEveryMs: 0, reportsEveryMs: 0, needsHelpEveryMs: 0 }).start();
   return { store, services, llm, worker, lee: lee.personId, ana: ana.personId };
 }
 
@@ -52,6 +52,21 @@ describe("needs-help check-ins", () => {
     await store.checkIn({ clientId: "c2", personId: lee, kind: "sms", result: "needs_help", note: "" });
     await worker.idle();
     expect((await store.listOpenSos()).filter((s) => s.personId === lee)).toHaveLength(1);
+  });
+
+  it("the sweep gives everyone still marked needs_help an SOS, once (check-ins from before the worker started)", async () => {
+    const { store, worker, lee, ana } = await setup();
+    worker.stop(); // check-ins below land with no listener, like a worker that was down
+    await store.checkIn({ clientId: "old-1", personId: lee, kind: "app", result: "needs_help", note: "flood demo" });
+    await store.checkIn({ clientId: "old-2", personId: ana, kind: "sms", result: "needs_help", note: "water in the garage" });
+    worker.start();
+    expect(await worker.sweepNeedsHelp()).toBe(2);
+    await worker.idle();
+    expect(await worker.sweepNeedsHelp()).toBe(0);
+    const open = await store.listOpenSos();
+    expect(open.map((s) => s.personId).sort()).toEqual([lee, ana].sort());
+    expect(open.find((s) => s.personId === ana)!.message).toContain("water in the garage");
+    for (const s of open) expect(await store.getTriageForSos(s.id)).toBeDefined();
   });
 
   it("ignore safe check-ins", async () => {

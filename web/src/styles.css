@@ -251,3 +251,28 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
   overflow: auto;
 }
 .card .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Nemotron reasoning pop-up */
+.rmodal-back { position: fixed; inset: 0; z-index: 50; background: rgba(5, 5, 8, 0.62); display: grid; place-items: center; padding: var(--gut); animation: rm-fade 0.18s ease-out both; }
+.rmodal { position: relative; z-index: 51; width: min(760px, 100%); max-height: min(82vh, 900px); display: flex; flex-direction: column; overflow: hidden; border-color: var(--p1); animation: rm-pop 0.22s cubic-bezier(.2,.8,.2,1) both; }
+.rmodal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 10px; border-bottom: 2px solid var(--border); }
+.rmodal-head .esc { position: static; }
+.rmodal-head .name { font-size: 15px; color: var(--cream); margin-top: 6px; }
+.rmodal-head .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.rmodal-sum { padding: 10px 16px; font-size: 13px; line-height: 1.45; border-bottom: 2px solid var(--border); background: rgba(255, 59, 78, 0.07); }
+.rmodal-tabs { display: flex; gap: 6px; padding: 10px 16px 0; }
+.rmodal-tabs button { font-size: 11px; padding: 5px 8px; border: 2px solid var(--border); color: var(--muted); }
+.rmodal-tabs button.on { border-color: var(--warm); color: var(--cream); }
+.rmodal-steps { list-style: none; margin: 0; padding: 10px 16px 16px; overflow: auto; flex: 1; }
+.rmodal-steps li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.rmodal-steps .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 11px; color: var(--dim); }
+.rmodal-steps .who { color: var(--warm); }
+.rmodal-steps .kind { padding: 1px 5px; border: 1px solid var(--border-light); }
+.rmodal-steps .kind.k-tool_call { color: var(--enroute); border-color: var(--enroute); }
+.rmodal-steps .kind.k-decision { color: var(--safe); border-color: var(--safe); }
+.rmodal-steps .body { font-size: 13px; line-height: 1.5; margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--warm); }
+.rmodal-steps li.k-thought .body, .rmodal-steps li.k-tool_result .body { color: var(--muted); }
+.rmodal-steps li.k-decision .body { color: var(--cream); }
+@keyframes rm-fade { from { opacity: 0; } }
+@keyframes rm-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) { .rmodal-back, .rmodal { animation: none; } }

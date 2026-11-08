@@ -22,7 +22,7 @@ import { channelStoreFor, startChannels } from "./runtime/channels.js";
 import { buildServices } from "./runtime/services.js";
 import { InMemoryStore } from "./store/memory.js";
 import { SpacetimeStore, spacetimeConfigFromEnv } from "./store/spacetime.js";
-import type { ActionRequest, CheckIn, FirstLineStore, Id, Unsubscribe } from "./store/types.js";
+import type { ActionRequest, CheckIn, FirstLineStore, Id, SosChannel, Unsubscribe } from "./store/types.js";
 
 export * from "./store/types.js";
 export { InMemoryStore } from "./store/memory.js";
@@ -33,6 +33,8 @@ export * from "./llm/index.js";
 export interface WorkerOptions {
   silentSignalEveryMs?: number;
   reportsEveryMs?: number;
+  /** How often to give an SOS to needs_help people who have none (0 = off). Default 30 s. */
+  needsHelpEveryMs?: number;
   /** Agent runs at once across SOS events (the flood demo opens dozens). Default 4. */
   concurrency?: number;
   onError?: (where: string, err: unknown) => void;
@@ -113,14 +115,8 @@ export class AgentWorker {
   async handleCheckIn(c: CheckIn): Promise<void> {
     const want = sosForCheckIn(c);
     if (!want) return;
-    await this.track(
-      (async () => {
-        const person = await this.deps.store.getPerson(c.personId);
-        if (!person || (await activeSos(this.deps, person.id))) return;
-        await ensureSos(this.deps, person, want.clientId, want.message, want.channel);
-        // The onSos listener picks the new SOS up.
-      })(),
-    );
+    // The onSos listener picks the new SOS up.
+    await this.track(this.openFor(c.personId, want.clientId, want.message, want.channel));
   }
 
   /** A dashboard button: run it with the agents and write the outcome back to action_request. */
@@ -190,6 +186,44 @@ export class AgentWorker {
     );
   }
 
+  /** People already being given an SOS (check-in handler and sweep must not both open one). */
+  private opening = new Set<Id>();
+
+  private async openFor(personId: Id, clientId: string, message: string, channel: SosChannel): Promise<boolean> {
+    if (this.opening.has(personId)) return false;
+    this.opening.add(personId);
+    try {
+      const person = await this.deps.store.getPerson(personId);
+      if (!person || person.status !== "needs_help" || (await activeSos(this.deps, personId))) return false;
+      return (await ensureSos(this.deps, person, clientId, message, channel)).created;
+    } finally {
+      this.opening.delete(personId);
+    }
+  }
+
+  /**
+   * Everyone marked needs_help with no active SOS gets one, so the agents triage the whole flood,
+   * including check-ins that arrived while the worker was down. Returns how many were opened.
+   */
+  async sweepNeedsHelp(): Promise<number> {
+    const { store } = this.deps;
+    let opened = 0;
+    for (const p of (await store.listPeople()).filter((x) => x.status === "needs_help")) {
+      if (await activeSos(this.deps, p.id)) continue;
+      const last = (await store.listCheckIns(p.id)).filter((c) => c.result === "needs_help").at(-1);
+      const want = last ? sosForCheckIn(last) : undefined;
+      const stamp = p.lastSeen?.getTime() ?? 0;
+      const ok = await this.openFor(
+        p.id,
+        `needs-help:${p.id}:${stamp}`,
+        want?.message ?? `Marked as needing help${last?.note ? `: ${last.note}` : "."}`,
+        want?.channel ?? "app",
+      ).catch((err) => (this.onError("sweepNeedsHelp", err), false));
+      if (ok) opened++;
+    }
+    return opened;
+  }
+
   async handleReplan(sosId: Id, trigger: DispatchTrigger): Promise<void> {
     await this.onSos(sosId, async () => {
       this.dispatched.push(await runDispatch(this.deps, sosId, trigger));
@@ -209,6 +243,8 @@ export class AgentWorker {
     const rp = this.opts.reportsEveryMs ?? 120_000;
     if (ss > 0) this.timers.push(setInterval(() => void this.track(this.silentSignal.sweep()), ss));
     if (rp > 0) this.timers.push(setInterval(() => void this.track(runReportsSweep(this.deps)), rp));
+    const nh = this.opts.needsHelpEveryMs ?? 30_000;
+    if (nh > 0) this.timers.push(setInterval(() => void this.track(this.sweepNeedsHelp()), nh));
     return this;
   }
 
@@ -233,6 +269,7 @@ export async function catchUp(worker: AgentWorker): Promise<number> {
     void worker.handleAction(req);
     n++;
   }
+  n += await worker.sweepNeedsHelp();
   for (const sos of await store.listOpenSos()) {
     const triage = await store.getTriageForSos(sos.id);
     const live = (await store.listAssignments(sos.id)).some((a) => a.state === "offered" || a.state === "accepted");
