@@ -21,6 +21,13 @@ grep -q '^VITE_SPACETIME_TOKEN=.' "$ENVF" || { echo "VITE_SPACETIME_TOKEN (viewe
 echo "== build dashboard"
 npm --prefix "$ROOT/web" run build
 
+# The resident app (sign-up, "I'm safe", "I need help") is served at /app/ from the same site.
+# It ships no token: every phone creates its own identity and only sees its own records.
+echo "== build resident app (/app/)"
+[ -d "$ROOT/mobile/node_modules" ] || npm --prefix "$ROOT/mobile" ci
+npm --prefix "$ROOT/mobile" run build
+rm -rf "$ROOT/web/dist/app" && cp -r "$ROOT/mobile/dist" "$ROOT/web/dist/app"
+
 echo "== upload to $IP:/srv/firstline/web"
 tar -C "$ROOT/web/dist" -czf - . | $SSH 'set -e
   rm -rf /srv/firstline/web.new && mkdir -p /srv/firstline/web.new
@@ -29,4 +36,6 @@ tar -C "$ROOT/web/dist" -czf - . | $SSH 'set -e
   [ -d /srv/firstline/web ] && mv /srv/firstline/web /srv/firstline/web.old
   mv /srv/firstline/web.new /srv/firstline/web
   chown -R firstline:firstline /srv/firstline/web && chmod -R a+rX /srv/firstline'
-curl -s -o /dev/null -w "site: %{http_code}\n" "https://$(echo "$IP" | tr . -).sslip.io/"
+SITE="https://$(echo "$IP" | tr . -).sslip.io"
+curl -s -o /dev/null -w "dashboard: %{http_code}\n" "$SITE/"
+curl -s -o /dev/null -w "resident app: %{http_code}\n" "$SITE/app/"
