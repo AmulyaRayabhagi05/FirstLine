@@ -1,15 +1,24 @@
-# Static dashboard. SITE_HOST is e.g. 203-0-113-7.sslip.io (free DNS that maps to the IP) or a
-# real domain; Caddy gets and renews the HTTPS certificate on its own.
-{$SITE_HOST} {
-	root * /srv/firstline/web
+207-148-5-196.sslip.io {
 	encode gzip
-	try_files {path} /index.html
-	file_server
-	header {
-		X-Content-Type-Options nosniff
-		Referrer-Policy strict-origin-when-cross-origin
-		X-Frame-Options DENY
+	request_body {
+		max_size 64KB
 	}
-	@assets path /assets/*
-	header @assets Cache-Control "public, max-age=31536000, immutable"
+	# Twilio SMS and voice webhooks -> the agent worker
+	@twilio path /sms /sms/* /voice /voice/*
+	handle @twilio {
+		reverse_proxy 127.0.0.1:8787
+	}
+	# FirstLine dashboard (static build; reads SpacetimeDB Maincloud as a read-only viewer)
+	handle {
+		root * /srv/firstline/web
+		try_files {path} /index.html
+		file_server
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			X-Frame-Options DENY
+		}
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+	}
 }

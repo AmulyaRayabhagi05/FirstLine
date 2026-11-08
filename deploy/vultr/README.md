@@ -1,42 +1,39 @@
-# Hosting on Vultr
+# Hosting
 
 | Piece | Where |
 |---|---|
-| Web dashboard (static) | Vultr, served by Caddy with automatic HTTPS |
-| Agent worker | Vultr, systemd `firstline-worker` |
-| Nemotron (vLLM) | Brev GPU box, reached through the systemd `firstline-brev-tunnel` SSH tunnel |
+| Web dashboard (static) | Vultr `207.148.5.196`, Caddy at **https://207-148-5-196.sslip.io** (automatic HTTPS) |
+| Twilio SMS / voice webhooks | Same Caddy site, `/sms*` and `/voice*` proxied to the worker on `127.0.0.1:8787` |
+| Agent worker | Vultr, systemd `firstline-worker`, code and `.env` in `/opt/firstline/app/agents` (Maincloud, live Twilio) |
+| Nemotron (vLLM) | Brev `hope-nemotron`; a `cloudflared` quick tunnel on the Brev box exposes it, and the worker's `NEMOTRON_BASE_URL` is that `*.trycloudflare.com` URL (vLLM still requires the API key) |
 | Database | SpacetimeDB Maincloud, database `firstline` |
 
-The public dashboard reads through a **viewer** identity: it can read the dashboard views
-(`dash_person` without phone numbers, and the `ops_*` views except `ops_person` and
-`ops_audit_log`) and cannot call any reducer. Its token is in the public JS bundle on purpose.
-Rotate it with `remove_viewer` + `add_viewer`.
+`Caddyfile` here is a copy of `/etc/caddy/Caddyfile` on the server.
 
-## First time
+## Publish the dashboard
 
-1. Create an Ubuntu 24.04 Cloud Compute server (2 GB) in Vultr with your SSH key.
-2. Site host: a domain pointed at the IP, or free `<ip-with-dashes>.sslip.io`.
-3. The repo is private, so the server never clones it: `deploy.sh` uploads `agents/` and
-   `deploy/` from the committed `main` branch over SSH.
-4. Viewer token, once (owner machine):
-   ```bash
-   curl -s -X POST https://maincloud.spacetimedb.com/v1/identity   # {"identity":..., "token":...}
-   spacetime call --server maincloud firstline add_viewer '"0x<identity>"'
-   ```
-   `web/.env.production.local` (git-ignored):
-   ```
-   VITE_SPACETIME_HOST=https://maincloud.spacetimedb.com
-   VITE_SPACETIME_DB=firstline
-   VITE_SPACETIME_TOKEN=<viewer token>
-   ```
-5. From the laptop: `deploy/vultr/deploy.sh <server-ip> --setup <site-host> --brev`
+```bash
+deploy/vultr/deploy.sh
+```
 
-## Updates
+It builds `web/` with `web/.env.production.local` and swaps `/srv/firstline/web`. Nothing else on
+the server changes.
 
-`deploy/vultr/deploy.sh <server-ip>` uploads `main` for the worker, rebuilds and uploads the
-dashboard, copies `agents/.env` and the worker token, and restarts everything.
+The public dashboard reads as a **viewer** identity: it can read the dashboard views (`dash_person`
+without phone numbers, and the `ops_*` views except `ops_person` and `ops_audit_log`) and cannot
+call any reducer. Its token is in the public bundle on purpose. One-time grant (module owner):
 
-Logs: `journalctl -u firstline-worker -f`, `journalctl -u firstline-brev-tunnel -f`.
+```bash
+spacetime call --server maincloud firstline add_viewer '"0x<viewer identity>"'
+```
 
-If the Brev instance is deleted and recreated, its IP and authorized keys change: run
-`deploy.sh <server-ip> --brev` again (and update `NEMOTRON_API_KEY` in `agents/.env`).
+Rotate it with `remove_viewer`, a new identity (`curl -s -X POST https://maincloud.spacetimedb.com/v1/identity`)
+and `add_viewer`, then redeploy.
+
+## Worker and Nemotron
+
+- Logs: `ssh root@207.148.5.196 journalctl -u firstline-worker -f`
+- The quick-tunnel URL changes whenever `cloudflared` restarts on the Brev box (or the instance is
+  recreated). Then put the new URL in `NEMOTRON_BASE_URL` in `/opt/firstline/app/agents/.env` and
+  `systemctl restart firstline-worker`. Check with `sudo -u firstline node test-nemotron.cjs` in that folder.
+- The worker code in `/opt/firstline/app` was copied up by hand; update it the same way and restart.

@@ -1,64 +1,32 @@
 #!/usr/bin/env bash
-# Deploy FirstLine to the Vultr server from a laptop checkout (Git Bash, WSL, macOS or Linux).
+# Build the dashboard against SpacetimeDB Maincloud and publish it to the Vultr server.
 #
-#   deploy/vultr/deploy.sh <server-ip>                      upload code, dashboard and secrets, restart
-#   deploy/vultr/deploy.sh <server-ip> --setup <site-host>  first time: also install the server
-#   deploy/vultr/deploy.sh <server-ip> --brev               also (re)authorize the tunnel key on Brev
+#   deploy/vultr/deploy.sh [server-ip]      (default 207.148.5.196)
 #
-# Code comes from the committed `main` branch (git archive), not the working tree.
-# Needs: SSH to root@<server-ip> with your key, web/.env.production.local holding the Maincloud
-# VIEWER token (never a staff token: it ships in the public bundle), agents/.env and
-# agents/.spacetime-token (the Maincloud worker token). --brev also needs WSL with the brev CLI
-# logged in (hope-nemotron-host in ~/.brev/ssh_config).
+# Needs SSH to root@<server-ip> and web/.env.production.local (git-ignored) with:
+#   VITE_SPACETIME_HOST=https://maincloud.spacetimedb.com
+#   VITE_SPACETIME_DB=firstline
+#   VITE_SPACETIME_TOKEN=<Maincloud VIEWER token>   (never a staff token: it ships in the bundle)
+# Only the static site is touched; the worker and the Caddy config on the server are left alone.
 set -euo pipefail
-IP="${1:?usage: deploy.sh <server-ip> [--setup <site-host>] [--brev]}"
-shift
-SETUP_HOST=""
-BREV=0
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --setup) SETUP_HOST="${2:?--setup needs the site host}"; shift 2 ;;
-    --brev) BREV=1; shift ;;
-    *) echo "unknown option $1"; exit 1 ;;
-  esac
-done
+IP="${1:-207.148.5.196}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ENVF="$ROOT/web/.env.production.local"
 SSH="ssh -o StrictHostKeyChecking=accept-new root@$IP"
 
-[ -f "$ROOT/web/.env.production.local" ] || { echo "missing web/.env.production.local (VITE_SPACETIME_HOST/DB/TOKEN)"; exit 1; }
-[ -f "$ROOT/agents/.env" ] || { echo "missing agents/.env"; exit 1; }
-[ -f "$ROOT/agents/.spacetime-token" ] || { echo "missing agents/.spacetime-token (Maincloud worker token)"; exit 1; }
-if grep -q '127.0.0.1\|localhost' "$ROOT/web/.env.production.local"; then
-  echo "web/.env.production.local points at a local database; set VITE_SPACETIME_HOST to Maincloud"; exit 1
-fi
-
-echo "== upload code (main)"
-git -C "$ROOT" archive --format=tar main agents deploy | $SSH 'set -e; mkdir -p /srv/firstline/repo; tar -xf - -C /srv/firstline/repo'
-
-if [ -n "$SETUP_HOST" ]; then
-  echo "== one-time server setup for $SETUP_HOST"
-  $SSH "bash /srv/firstline/repo/deploy/vultr/setup.sh '$SETUP_HOST'"
-fi
+[ -f "$ENVF" ] || { echo "missing web/.env.production.local"; exit 1; }
+grep -q '^VITE_SPACETIME_HOST=https://maincloud.spacetimedb.com' "$ENVF" || { echo "VITE_SPACETIME_HOST must be Maincloud"; exit 1; }
+grep -q '^VITE_SPACETIME_TOKEN=.' "$ENVF" || { echo "VITE_SPACETIME_TOKEN (viewer) is missing"; exit 1; }
 
 echo "== build dashboard"
 npm --prefix "$ROOT/web" run build
 
-echo "== upload dashboard"
-tar -C "$ROOT/web/dist" -czf - . | $SSH 'set -e; rm -rf /srv/firstline/web.new; mkdir -p /srv/firstline/web.new; tar -xzf - -C /srv/firstline/web.new; rm -rf /srv/firstline/web.old; [ -d /srv/firstline/web ] && mv /srv/firstline/web /srv/firstline/web.old; mv /srv/firstline/web.new /srv/firstline/web; chown -R firstline:firstline /srv/firstline/web'
-
-echo "== update worker code and secrets"
-$SSH 'set -e; chown -R firstline:firstline /srv/firstline/repo; sudo -u firstline npm ci --silent --no-audit --no-fund --prefix /srv/firstline/repo/agents'
-tar -C "$ROOT/agents" -czf - .env .spacetime-token | $SSH 'set -e; cd /srv/firstline/repo/agents; tar -xzf -; chown firstline:firstline .env .spacetime-token; chmod 600 .env .spacetime-token'
-
-if [ "$BREV" = 1 ]; then
-  echo "== authorize the server's tunnel key on the Brev box"
-  PUB="$($SSH 'cat /home/firstline/.ssh/brev_ed25519.pub')"
-  BREV_HOST="$(wsl -d Ubuntu -- bash -lc "awk '/^Host hope-nemotron-host/{f=1} f&&/Hostname/{print \$2; exit}' ~/.brev/ssh_config" | tr -d '\r\0')"
-  BREV_USER="$(wsl -d Ubuntu -- bash -lc "awk '/^Host hope-nemotron-host/{f=1} f&&/User /{print \$2; exit}' ~/.brev/ssh_config" | tr -d '\r\0')"
-  printf '%s\n' "$PUB" | wsl -d Ubuntu -- ssh hope-nemotron-host 'mkdir -p ~/.ssh; chmod 700 ~/.ssh; read -r k; grep -qxF "$k" ~/.ssh/authorized_keys 2>/dev/null || echo "$k" >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys'
-  $SSH "printf 'BREV_HOST=%s\nBREV_USER=%s\n' '$BREV_HOST' '$BREV_USER' > /etc/firstline/brev.env; chmod 640 /etc/firstline/brev.env; chgrp firstline /etc/firstline/brev.env"
-fi
-
-echo "== restart services"
-$SSH 'systemctl restart firstline-brev-tunnel; sleep 3; systemctl restart firstline-worker caddy; sleep 5; systemctl --no-pager --lines=0 status firstline-brev-tunnel firstline-worker caddy | grep -E "●|Active:"'
-echo "done"
+echo "== upload to $IP:/srv/firstline/web"
+tar -C "$ROOT/web/dist" -czf - . | $SSH 'set -e
+  rm -rf /srv/firstline/web.new && mkdir -p /srv/firstline/web.new
+  tar -xzf - -C /srv/firstline/web.new
+  rm -rf /srv/firstline/web.old
+  [ -d /srv/firstline/web ] && mv /srv/firstline/web /srv/firstline/web.old
+  mv /srv/firstline/web.new /srv/firstline/web
+  chown -R firstline:firstline /srv/firstline/web && chmod -R a+rX /srv/firstline'
+curl -s -o /dev/null -w "site: %{http_code}\n" "https://$(echo "$IP" | tr . -).sslip.io/"
