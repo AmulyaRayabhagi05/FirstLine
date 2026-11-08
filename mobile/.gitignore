@@ -1,0 +1,6 @@
+node_modules
+dist
+src/module_bindings
+.env.local
+.env.*.local
+.vite

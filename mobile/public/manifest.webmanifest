@@ -1,0 +1,17 @@
+{
+  "name": "FirstLine",
+  "short_name": "FirstLine",
+  "description": "Sign up so your neighbors know to check on you in a storm or flood. One tap for \"I'm safe\" or \"I need help\".",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#e8283d",
+  "icons": [
+    { "src": "/app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/app/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
