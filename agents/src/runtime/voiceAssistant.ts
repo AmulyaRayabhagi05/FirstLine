@@ -151,6 +151,7 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
       const help = people.filter((p) => p.status === "needs_help").length;
       return {
         lang: "en",
+        hints: await this.nameHints("operator"),
         say: `FirstLine operations. Right now ${help} people need help, with ${open} open S O S events and ${p1} priority one. ${unknown} people have not been reached. Ask me about any household, what to do next, or safety guidance.`,
       };
     }
@@ -183,7 +184,7 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
 
     const rules: Record<Mode, string> = {
       operator:
-        "The caller is the FirstLine coordinator. Brief them like a dispatcher: lead with the most urgent household, use names and addresses from CONTEXT, say what the agents already did and what is still open. action is always none or hangup.",
+        "The caller IS the FirstLine coordinator; there is nobody else to connect them to. Brief them like a dispatcher: lead with the most urgent household, use names and addresses from CONTEXT, say what the agents already did and what is still open. action is always none or hangup.",
       resident:
         "The caller is the resident in CONTEXT. Tell them where their help request stands (who is coming, what was decided) and what to do now. If they describe being hurt, trapped, very cold, water coming in, a medical device losing power, or anything urgent, set action to sos. If they say they are fine and need nothing, set action to safe.",
       public: "The caller is not registered. Give general safety guidance only. Never reveal anything about any resident.",
@@ -192,6 +193,8 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
       "/no_think",
       "You are FirstLine's phone line during a disaster. Your words are read aloud by text to speech.",
       rules[state.mode],
+      "You cannot transfer, connect, dial or send anyone during this call, and you must never say you will. Only describe actions that CONTEXT shows already happened.",
+      "Speech recognition can mishear. If what the caller said is a fragment or makes no sense as a request (for example 'I am.' or 'My hand.'), do not guess: say what you heard, ask them to repeat, and suggest a question you can answer (who needs help first, a named household, or what to do about cold, carbon monoxide or flooding). Exception: if a resident clearly reports being hurt or in danger, treat it as urgent.",
       "Rules: at most three short sentences. Plain speech, no lists, no markdown, no card ids, no URLs, never read out hexagon cell ids or other codes (say the street or neighborhood instead). Use only facts from CONTEXT and GUIDANCE; if you do not know, say so. If anything sounds life threatening, tell them to call 9 1 1 first.",
       `Answer in ${state.lang === "es" ? "Spanish" : "English"} unless the caller switches language.`,
       'Reply with one JSON object: {"say": "...", "action": "none" | "sos" | "safe" | "hangup"}',
@@ -237,8 +240,20 @@ export class FirstLineVoiceAssistant implements VoiceAssistant {
       }
     }
     state.history.push({ role: "user", content: untrusted(turn.text) }, { role: "assistant", content: JSON.stringify({ say, action: out.action }) });
+    const hints = await this.nameHints(state.mode, person);
     await this.log(person?.id, `Call (${state.mode}): "${turn.text.slice(0, 160)}" -> ${out.action}; said "${say.slice(0, 200)}"`);
-    return { say, lang: state.lang, hangup: out.action === "hangup" };
+    return { say, lang: state.lang, hangup: out.action === "hangup", hints };
+  }
+
+  /** Names the caller is likely to say: the people needing help (operator) or the household and helpers (resident). */
+  private async nameHints(mode: Mode, person?: Person): Promise<string[]> {
+    if (mode === "public") return [];
+    const people = await this.deps.store.listPeople();
+    const pool =
+      mode === "operator"
+        ? people.filter((p) => p.status === "needs_help" || p.priority === "P1" || p.priority === "P2")
+        : people.filter((p) => p.householdId === person?.householdId);
+    return pool.slice(0, 40).map((p) => p.name);
   }
 
   private async log(personId: number | undefined, content: string) {
