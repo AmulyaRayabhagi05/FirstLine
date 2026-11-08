@@ -57,7 +57,10 @@ describe.skipIf(!dbUp)('Tiger SQL (local TimescaleDB)', () => {
   let pool: pg.Pool;
   const cell = pointCell(32.7767, -96.797);
   const otherCell = pointCell(32.9, -96.7);
-  const ago = (min: number) => new Date(Date.now() - min * 60_000);
+  // One fixed base time: each ago() call must return the same instant for the same offset,
+  // or rows meant to be duplicates (same time/source/kind/cell/id) differ by a millisecond.
+  const T0 = Date.now();
+  const ago = (min: number) => new Date(T0 - min * 60_000);
 
   beforeAll(async () => {
     const admin = new pg.Client({ connectionString: ADMIN_URL });
