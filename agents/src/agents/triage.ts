@@ -143,6 +143,42 @@ const RULES: { re: RegExp; urgency: number; needs: Needs; why: string }[] = [
   { re: /(no power|sin luz|sin electricidad|cold|frio|heat|calor)/, urgency: 3, needs: "neighbor", why: "power or temperature problem" },
 ];
 
+/**
+ * Priority ladder for a check-in with no details, decided only by the profile (never by the model).
+ * `why` is empty for the lowest rung (no risk factors).
+ */
+export function profileLadder(person: Person): { urgency: number; needs: Needs; priority: Priority; why: string } {
+  const alone = person.livesAlone;
+  let urgency = 2;
+  let needs: Needs = "neighbor";
+  let why = "";
+  if (person.poweredDevice || person.mobility === "cannot_walk") {
+    urgency = 5;
+    needs = "professional";
+    why = person.poweredDevice ? "needs help and uses a powered medical device" : "needs help and cannot walk";
+  } else if ((person.age >= 80 && alone) || (person.mobility === "limited" && alone)) {
+    urgency = 4;
+    needs = "professional";
+    why = person.age >= 80 ? `needs help, ${person.age} and lives alone` : "needs help, limited mobility and lives alone";
+  } else if (person.age >= 65 || alone || person.mobility === "limited") {
+    urgency = 3;
+    why = person.age >= 65 ? `needs help, age ${person.age}` : alone ? "needs help and lives alone" : "needs help, limited mobility";
+  }
+  const priority: Priority = urgency >= 5 ? "P1" : urgency >= 3 ? "P2" : "P3";
+  return { urgency, needs, priority, why };
+}
+
+/** Keep only [card-id] citations the model actually got back from lookup_protocol. */
+export function stripFakeCitations(reason: string, real: Set<string>): string {
+  const out = reason
+    .replace(/\s*\[([^\]]+)\]/g, (m, id: string) => (real.has(id.trim().toLowerCase()) ? m : ""))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return out.length >= 3 ? out : reason.replace(/\s*\[[^\]]+\]/g, "").trim() || reason;
+}
+
+const isBareCheckIn = (clientId: string) => /^(checkin|needs-help):/.test(clientId);
+
 export function ruleTriage(message: string, person?: Person) {
   const text = message.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const hits = RULES.filter((r) => r.re.test(text));
@@ -166,19 +202,11 @@ export function ruleTriage(message: string, person?: Person) {
   }
   // A bare "needs help" with no danger words: the profile decides, same ladder as the prompt.
   if (whys.length === 0 && person && /need(s|ing)? help|necesit/.test(text)) {
-    const alone = person.livesAlone;
-    if (person.poweredDevice || person.mobility === "cannot_walk") {
-      urgency = 5;
-      needs = "professional";
-      whys.push(person.poweredDevice ? "needs help and uses a powered medical device" : "needs help and cannot walk");
-    } else if ((person.age >= 80 && alone) || (person.mobility === "limited" && alone)) {
-      urgency = 4;
-      needs = "professional";
-      whys.push(person.age >= 80 ? `needs help, ${person.age} and lives alone` : "needs help, limited mobility and lives alone");
-    } else if (person.age >= 65 || alone || person.mobility === "limited") {
-      urgency = 3;
-      needs = "neighbor";
-      whys.push(person.age >= 65 ? `needs help, age ${person.age}` : alone ? "needs help and lives alone" : "needs help, limited mobility");
+    const l = profileLadder(person);
+    if (l.why) {
+      urgency = l.urgency;
+      needs = l.needs;
+      whys.push(l.why);
     }
   }
   if (whys.length === 0) needs = "neighbor";
@@ -214,6 +242,15 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
     let raised = false;
     if (source === "model") {
       const person = await store.getPerson(sos.personId);
+      v = { ...v, reason: stripFakeCitations(v.reason, retrievedCardIds) };
+      // Check-in with no details: priority comes from the profile ladder in code; the model only writes the reason.
+      if (person && isBareCheckIn(sos.clientId)) {
+        const l = profileLadder(person);
+        if (l.priority !== v.priority) {
+          await log("decision", `Profile ladder: model said ${v.priority}, set to ${l.priority} from the profile (${l.why || "no risk factors"})`);
+        }
+        v = { ...v, urgency: l.urgency, needs: l.needs, priority: l.priority };
+      }
       const modelPriority = v.priority;
       const f = applySafetyFloor(v, sos.message, person);
       if (f.raised) {
@@ -316,7 +353,7 @@ export async function runTriage(deps: AgentDeps, sos: SosEvent): Promise<TriageO
   // The profile goes in the task: in 121 recorded runs the model never called get_person_profile.
   const person0 = await store.getPerson(sos.personId);
   readProfile = !!person0;
-  const fromCheckIn = /^(checkin|needs-help):/.test(sos.clientId);
+  const fromCheckIn = isBareCheckIn(sos.clientId);
   const task = [
     `SOS #${sos.id} from person ${sos.personId} via ${sos.channel} at ${sos.createdAt.toISOString()}:`,
     untrusted(sos.message),

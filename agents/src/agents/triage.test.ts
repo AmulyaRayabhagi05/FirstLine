@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FakeLlm } from "../llm/fake.js";
 import { InMemoryStore } from "../store/memory.js";
 import { stubServices } from "./services.js";
-import { runTriage } from "./triage.js";
+import { profileLadder, runTriage, stripFakeCitations } from "./triage.js";
 
 async function rosaSos() {
   const store = new InMemoryStore();
@@ -80,5 +80,42 @@ describe("triage tolerance to real model output", () => {
     const steps = await store.listAgentSteps(`sos:${sos.id}`);
     expect(steps.some((s) => /Raw reply: Still no JSON/.test(s.content))).toBe(true);
     expect(steps.at(-1)!.content).toMatch(/^Fallback rules \(model error: /);
+  });
+
+  it("drops cited card ids the model never looked up", () => {
+    const real = new Set(["power-device-backup"]);
+    expect(stripFakeCitations("No details; 30, no risk [no-risk-profile] [lives_alone-false]", real)).toBe("No details; 30, no risk");
+    expect(stripFakeCitations("Oxygen, no power [power-device-backup]", real)).toBe("Oxygen, no power [power-device-backup]");
+    expect(stripFakeCitations("Oxygen [POWER-DEVICE-BACKUP] [no-powered-device]", real)).toBe("Oxygen [POWER-DEVICE-BACKUP]");
+  });
+
+  it("check-in with no details: priority comes from the profile ladder, not the model", async () => {
+    const store = new InMemoryStore();
+    const { personId } = await store.registerPerson({
+      name: "Sam", age: 30, livesAlone: false, mobility: "ok", medicalNeeds: "", poweredDevice: false,
+      hasSmartphone: true, language: "en", phone: "+1556", address: "2 Elm", lat: 32.7767, lng: -96.797,
+    });
+    const sosId = await store.pressSos({
+      clientId: "checkin:1", personId, message: "needs help", lat: 32.7767, lng: -96.797, channel: "app",
+    });
+    const sos = (await store.getSos(sosId))!;
+    const llm = new FakeLlm({
+      triage: [
+        { thought: "save", tool: "save_triage", args: { urgency: 3, needs: "neighbor", priority: "P2", reason: "No details [flood-cannot-walk]", confidence: 0.8 } },
+        { thought: "done", done: true, decision: "P2", confidence: 0.8 },
+      ],
+    });
+    const out = await runTriage({ store, llm, services: stubServices() }, sos);
+    expect(out).toMatchObject({ priority: "P3", urgency: 2, needs: "neighbor" });
+    expect(out.reason).not.toContain("[flood-cannot-walk]");
+  });
+
+  it("profile ladder rungs", () => {
+    const base = { name: "x", age: 40, livesAlone: false, mobility: "ok", medicalNeeds: "", poweredDevice: false } as never;
+    expect(profileLadder({ ...(base as object), age: 70 } as never).priority).toBe("P2");
+    expect(profileLadder({ ...(base as object), livesAlone: true } as never).priority).toBe("P2");
+    expect(profileLadder({ ...(base as object), age: 84, livesAlone: true } as never)).toMatchObject({ priority: "P2", urgency: 4, needs: "professional" });
+    expect(profileLadder({ ...(base as object), poweredDevice: true } as never).priority).toBe("P1");
+    expect(profileLadder(base).priority).toBe("P3");
   });
 });
