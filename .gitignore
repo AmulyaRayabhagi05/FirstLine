@@ -1,0 +1,42 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Rust / SpacetimeDB
+target/
+**/*.rs.bk
+
+# Python (sim scripts)
+__pycache__/
+*.pyc
+.venv/
+
+# Mobile
+.expo/
+ios/Pods/
+android/.gradle/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log
