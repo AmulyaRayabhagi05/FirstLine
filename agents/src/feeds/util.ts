@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export const H3_RES = 9;
-export const USER_AGENT = 'FirstLine-HackUTD (github.com/Spikestar05/FirstLine)';
+export const USER_AGENT = 'FirstLine-HackUTD (github.com/AmulyaRayabhagi05/FirstLine)';
 
 /** Dallas-area bounding box (lng/lat) used to scope queries. */
 export const DALLAS_BBOX = { west: -97.05, south: 32.55, east: -96.46, north: 33.03 };

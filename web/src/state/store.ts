@@ -40,7 +40,9 @@ export interface Resident {
   net: { name: string; status: Status }[];
   log: AgentLine[];
   /** Every person in the household, for actions that write per person (mark safe, the flood demo). */
-  members: { id: bigint; status: Status }[];
+  members: { id: bigint; status: Status; name: string; age: number; priority: string; medical: string; lastSeen: number | null }[];
+  /** The household's H3 res-9 cell (incident reports are written per res-8 parent). */
+  cell: string;
   /** Every agent step about this household (thoughts, tool calls, results, decisions). */
   reasoning: AgentLine[];
   /** Latest Nemotron triage of anyone in the household. */

@@ -4,6 +4,7 @@ import { CityCanvas } from './scene/CityCanvas';
 import { ErrorBoundary } from './hud/ErrorBoundary';
 import { BackButton, CounterBadge, DecisionTicker, Finale, HouseholdCard, IncidentReports, Intro, LiveBar, SignIn, Toolbar } from './hud/Hud';
 import { Minimap } from './hud/Minimap';
+import { PrintSheet } from './hud/PrintReport';
 import { useMap } from './state/store';
 
 export default function App() {
@@ -63,6 +64,7 @@ export default function App() {
       )}
       <Intro />
       <Finale />
+      <PrintSheet />
     </>
   );
 }
