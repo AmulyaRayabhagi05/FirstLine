@@ -315,7 +315,16 @@ function snapshot(conn: DbConnection) {
       helper,
       net,
       log,
-      members: members.map((m) => ({ id: m.id, status: statusOf(m) })),
+      members: members.map((m) => ({
+        id: m.id,
+        status: statusOf(m),
+        name: m.name,
+        age: m.age,
+        priority: m.priority,
+        medical: m.medicalNeeds,
+        lastSeen: ms(m.lastSeen) ?? null,
+      })),
+      cell: h.h3Cell,
       reasoning: linesByHome.get(idx) ?? [],
       triage: householdTriage(members.map((m) => latestTriage.get(key(m.id)))),
       assignment: householdAssignment(ids),
@@ -332,7 +341,9 @@ function snapshot(conn: DbConnection) {
     };
   }
 
+  // Incident reports are for Priority 1 cases only (older rows from before that rule are hidden).
   const reports: IncidentReport[] = [...db.opsIncidentReport.iter()]
+    .filter((r) => r.p1 > 0)
     .map((r) => ({
       id: key(r.id),
       cell: r.h3Cell,

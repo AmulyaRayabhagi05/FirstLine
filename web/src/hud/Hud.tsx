@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { traceHref } from './TraceView';
+import { isP1Household, printReport } from './PrintReport';
 import { createPortal } from 'react-dom';
 import { COMMS, fmtTime, homes, type Status } from '../sim/world';
 import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type ActionKind, type AgentLine, type Resident } from '../state/store';
@@ -325,6 +326,7 @@ function ReportsDialog({ startId, onClose }: { startId: string; onClose: () => v
       <div className="panel irep" role="dialog" aria-modal="true" aria-labelledby="reports-title" onClick={(e) => e.stopPropagation()}>
         <header className="irep-head">
           <h2 id="reports-title">Incident reports · {reports.length}</h2>
+          <button className="btn" onClick={() => printReport({ kind: 'areas' })} title="One page per area: briefing, counts and every household, most urgent first">Print all areas</button>
           <button id="reports-close" className="btn" onClick={onClose}>Close ✕</button>
         </header>
         <ol className="irep-list">
@@ -335,6 +337,7 @@ function ReportsDialog({ startId, onClose }: { startId: string; onClose: () => v
                 <span style={{ color: STATUS_COLOR.p1 }}>{r.p1} P1</span>
                 <span style={{ color: STATUS_COLOR.p2 }}>{r.p2} P2</span>
                 <span style={{ color: STATUS_COLOR.unknown }}>{r.unknown} unknown</span>
+                <button className="linkbtn irep-print" onClick={() => printReport({ kind: 'area', reportId: r.id })}>Print this area</button>
               </div>
               <p>{r.summary}</p>
               {hasBlocked(r.blockedRoads) && <p className="irep-blocked">Blocked roads: {r.blockedRoads}</p>}
@@ -657,6 +660,11 @@ export function HouseholdCard() {
             <a className="linkbtn" href={traceHref(r.members[0].id.toString())} title="This case hop by hop: which agent called which tool">
               Open trace
             </a>
+          )}
+          {isP1Household(r, s) && (
+            <button className="linkbtn" onClick={() => printReport({ kind: 'person', homeIdx: p.idx })} title="Priority 1 incident report: triage, response, timeline, reasoning">
+              Print incident report
+            </button>
           )}
         </div>
         <ol className="log">

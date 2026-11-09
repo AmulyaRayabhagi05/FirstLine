@@ -48,8 +48,10 @@ export interface ReportOutcome {
 }
 
 const INSTRUCTIONS = `You are the REPORTS agent for FirstLine, a disaster-response network of neighbors.
-Write a short briefing (2-4 sentences, plain English) for professional responders about one neighborhood cell:
-how many people need help or are unaccounted for, the most urgent cases and why, blocked roads, weather.
+Incident reports are only for Priority 1 (life threat) cases. Write a short briefing (2-4 sentences, plain English)
+for professional responders about the P1 people in one neighborhood cell: how many there are, who they are
+(name, age) and why each is P1, whether help is on the way, blocked roads and weather. Do not describe P2,
+unknown or safe people beyond one count.
 Call get_cell_overview first, then get_blocked_roads and get_weather, then save_incident_report, then done=true.`;
 
 export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<ReportOutcome> {
@@ -75,7 +77,7 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
 
   const overview = async () => {
     const urgent = [];
-    for (const p of stats.people.filter((x) => x.status !== "safe" && (x.priority === "P1" || x.priority === "P2"))) {
+    for (const p of stats.people.filter((x) => x.status !== "safe" && x.priority === "P1")) {
       const sos = (await store.listOpenSos()).find((s) => s.personId === p.id);
       const triage = sos ? await store.getTriageForSos(sos.id) : undefined;
       urgent.push({
@@ -88,7 +90,7 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
         triage_reason: triage?.reason ?? null,
       });
     }
-    urgent.sort((a, b) => (a.priority === b.priority ? b.score - a.score : a.priority === "P1" ? -1 : 1));
+    urgent.sort((a, b) => b.score - a.score);
     return {
       cell: stats.h3Cell8,
       total: stats.people.length,
@@ -143,12 +145,12 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
     const o = await overview();
     const worst = o.urgent
       .slice(0, 3)
-      .map((u) => `${u.name} (${u.age}, ${u.priority}${u.triage_reason ? `: ${u.triage_reason}` : ""})`)
+      .map((u) => `${u.name} (${u.age}${u.triage_reason ? `: ${u.triage_reason}` : ""})`)
       .join("; ");
     const r = await getRoads();
     const summary =
-      `${o.p1} P1, ${o.p2} P2, ${o.needs_help} need help, ${o.unknown} unaccounted for, ${o.safe} safe of ${o.total}.` +
-      (worst ? ` Most urgent: ${worst}.` : "") +
+      `${o.p1} Priority 1 ${o.p1 === 1 ? "case" : "cases"} of ${o.total} people in this area.` +
+      (worst ? ` ${worst}.` : "") +
       (r.length ? ` Blocked: ${r.join(", ")}.` : "");
     await save(summary, r.join(", "), "rules");
     await log("decision", `Fallback briefing saved: ${summary}`);
@@ -156,7 +158,7 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
   return saved as unknown as ReportOutcome;
 }
 
-/** Briefings for every res-8 cell with anyone not marked safe. */
+/** Briefings only for res-8 cells with an unresolved Priority 1 case. */
 // What each cell's last report was written from. A cell is rewritten only when its counts or
 // blocked roads change, or its report is over 30 minutes old. (Rewriting every cell every two
 // minutes was 70% of all agent steps, with near-identical reports.)
@@ -167,7 +169,7 @@ export async function runReportsSweep(deps: AgentDeps, opts: { force?: boolean }
   const out: ReportOutcome[] = [];
   const now = (deps.now ?? (() => new Date()))().getTime();
   for (const stats of await cellStats(deps)) {
-    if (stats.p1 + stats.p2 + stats.needsHelp + stats.unknown === 0) continue;
+    if (stats.p1 === 0) continue;
     const roads = await deps.services.roads.blockedRoads(stats.h3Cell8).catch(() => [] as string[]);
     const key = [stats.p1, stats.p2, stats.needsHelp, stats.unknown, stats.safe, [...roads].sort().join(";")].join("|");
     const prev = lastWritten.get(stats.h3Cell8);

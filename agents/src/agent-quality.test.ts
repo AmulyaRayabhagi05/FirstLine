@@ -68,12 +68,29 @@ describe("reports sweep", () => {
     const store = new InMemoryStore();
     const p = await store.registerPerson(person());
     await store.checkIn({ clientId: "c", personId: p.personId, kind: "app", result: "needs_help", note: "" });
+    await store.setPriority(p.personId, "P1", 20);
     const llm = new FakeLlm(); // model down: the rules write the report
     const deps = { store, llm, services: stubServices() };
     expect((await runReportsSweep(deps)).length).toBe(1);
     expect((await runReportsSweep(deps)).length).toBe(0);
-    await store.checkIn({ clientId: "c2", personId: (await store.registerPerson(person({ lat: 32.7501 }))).personId, kind: "app", result: "needs_help", note: "" });
+    const q = (await store.registerPerson(person({ lat: 32.7501 }))).personId;
+    await store.checkIn({ clientId: "c2", personId: q, kind: "app", result: "needs_help", note: "" });
+    await store.setPriority(q, "P1", 18);
     expect((await runReportsSweep(deps)).length).toBe(1);
+  });
+
+  it("writes incident reports only for areas with a Priority 1 case", async () => {
+    resetReportMemory();
+    const store = new InMemoryStore();
+    const p = await store.registerPerson(person());
+    await store.checkIn({ clientId: "c", personId: p.personId, kind: "app", result: "needs_help", note: "" });
+    await store.setPriority(p.personId, "P2", 8);
+    const deps = { store, llm: new FakeLlm(), services: stubServices() };
+    expect((await runReportsSweep(deps)).length).toBe(0);
+    await store.setPriority(p.personId, "P1", 20);
+    const out = await runReportsSweep(deps);
+    expect(out.length).toBe(1);
+    expect(out[0].summary).toMatch(/1 Priority 1 case/);
   });
 });
 
