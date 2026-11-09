@@ -5,7 +5,7 @@ disaster, and tracks one number above everything else: how many people are still
 
 - **Live dashboard:** https://207-148-5-196.sslip.io
 - **Resident app (PWA):** https://207-148-5-196.sslip.io/app/
-- **Devpost:** https://devpost.com/software/hope-qlvp96
+- **Youtube:** https://www.youtube.com/watch?v=gL9V0rZD2us
 - Built at **HackUTD 2026: ZeroDay** by Amulya Rayabhagi and Harshavarthan Mathapati.
 
 ## Why
