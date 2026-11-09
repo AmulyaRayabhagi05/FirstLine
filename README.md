@@ -200,7 +200,3 @@ every assumption and the caveats are in [sim/README.md](sim/README.md).
 - **We had to prove it works without a real disaster,** so we wrote down every assumption and
   measured the result.
 
-## Secrets
-
-This repo is public. Never commit keys, tokens or URLs with credentials. Real values go only in
-`agents/.env` (git-ignored). Copy `agents/.env.example` to start.
