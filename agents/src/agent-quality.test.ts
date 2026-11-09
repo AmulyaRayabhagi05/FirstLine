@@ -91,6 +91,25 @@ describe("reports sweep", () => {
     const out = await runReportsSweep(deps);
     expect(out.length).toBe(1);
     expect(out[0].summary).toMatch(/1 Priority 1 case/);
+    expect(out[0].summary).toMatch(/take to .+ km\)/);
+  });
+
+  it("adds where to go when the model's briefing leaves the place out", async () => {
+    resetReportMemory();
+    const store = new InMemoryStore();
+    const p = await store.registerPerson(person({ name: "Rosa", poweredDevice: true }));
+    await store.checkIn({ clientId: "c", personId: p.personId, kind: "app", result: "needs_help", note: "" });
+    await store.setPriority(p.personId, "P1", 20);
+    const llm = new FakeLlm({
+      reports: [
+        { thought: "counts", tool: "get_cell_overview", args: {} },
+        { thought: "save", tool: "save_incident_report", args: { summary: "1 P1: Rosa relies on oxygen and has no power." } },
+        { thought: "done", done: true, decision: "saved" },
+      ],
+    });
+    const out = await runReportsSweep({ store, llm, services: stubServices() });
+    expect(out[0].source).toBe("model");
+    expect(out[0].summary).toMatch(/^1 P1: Rosa relies on oxygen and has no power\. Where to go: Rosa, take to .+; backup .+\.$/);
   });
 });
 

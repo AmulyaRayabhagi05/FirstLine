@@ -1,0 +1,456 @@
+{
+ "source": "OpenStreetMap via Overpass (ODbL)",
+ "built": "2026-11-09",
+ "places": [
+  {
+   "id": "osm:way/221394564",
+   "kind": "er",
+   "name": "Baylor Medical Center at Uptown",
+   "address": "2727 East Lemmon Avenue, Dallas",
+   "lat": 32.80433,
+   "lng": -96.79502,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569688424",
+   "kind": "er",
+   "name": "Baylor Scott & White Medical Center - Plano",
+   "address": "4700 Alliance Boulevard, Plano",
+   "lat": 33.01419,
+   "lng": -96.79167,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/291275007",
+   "kind": "er",
+   "name": "Baylor Scott & White Medical Center – Irving",
+   "address": "1901 North Macarthur Boulevard, Irving",
+   "lat": 32.835,
+   "lng": -96.96102,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569714245",
+   "kind": "er",
+   "name": "Baylor Scott & White Medical Center – Lake Pointe",
+   "address": "6800 Scenic Drive, Rowlett",
+   "lat": 32.91762,
+   "lng": -96.508,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/599758241",
+   "kind": "er",
+   "name": "Baylor Scott & White Medical Center – Sunnyvale",
+   "address": "231 South Collins Road, Sunnyvale",
+   "lat": 32.7787,
+   "lng": -96.56849,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/548448654",
+   "kind": "er",
+   "name": "Baylor University Medical Center",
+   "address": "3500 Gaston Avenue, Dallas",
+   "lat": 32.79003,
+   "lng": -96.77861,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/335658221",
+   "kind": "er",
+   "name": "Carrollton Regional Medical Center",
+   "address": "4343 North Josey Lane, Carrollton",
+   "lat": 33.02819,
+   "lng": -96.88553,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/742612127",
+   "kind": "er",
+   "name": "Crescent Medical Center Lancaster",
+   "address": "2600 West Pleasant Run Road, Lancaster",
+   "lat": 32.60287,
+   "lng": -96.81275,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/429031918",
+   "kind": "er",
+   "name": "Dallas Medical Center",
+   "address": "7 Medical Parkway, Dallas",
+   "lat": 32.91499,
+   "lng": -96.87026,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569716705",
+   "kind": "er",
+   "name": "Dallas Regional Medical Center",
+   "address": "1011 North Galloway Avenue, Mesquite",
+   "lat": 32.77853,
+   "lng": -96.60116,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/127629512",
+   "kind": "er",
+   "name": "Medical City Dallas",
+   "address": "7777 Forest Lane, Dallas",
+   "lat": 32.91149,
+   "lng": -96.77346,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/562549265",
+   "kind": "er",
+   "name": "Medical City Las Colinas",
+   "address": "6800 North MacArthur Boulevard, Irving",
+   "lat": 32.90224,
+   "lng": -96.95704,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569682921",
+   "kind": "er",
+   "name": "Medical City Plano",
+   "address": "3901 West 15th Street, Plano",
+   "lat": 33.02178,
+   "lng": -96.76672,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/452935990",
+   "kind": "er",
+   "name": "Methodist Charlton Medical Center",
+   "address": "3500 West Wheatland Road, Dallas",
+   "lat": 32.64549,
+   "lng": -96.87637,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569499049",
+   "kind": "er",
+   "name": "Methodist Dallas Medical Center",
+   "address": "1441 North Beckley Avenue, Dallas",
+   "lat": 32.76133,
+   "lng": -96.82512,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569709191",
+   "kind": "er",
+   "name": "Methodist Richardson Medical Center",
+   "address": "2831 President George Bush Highway, Richardson",
+   "lat": 32.99577,
+   "lng": -96.66727,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/569788827",
+   "kind": "er",
+   "name": "Parkland Memorial Hospital",
+   "address": "5200 Harry Hines Boulevard, Dallas",
+   "lat": 32.81311,
+   "lng": -96.83553,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/547734061",
+   "kind": "er",
+   "name": "Texas Health Presbyterian Hospital Dallas",
+   "address": "8200 Walnut Hill Lane, Dallas",
+   "lat": 32.87969,
+   "lng": -96.76148,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/599698237",
+   "kind": "er",
+   "name": "Texas Health Presbyterian Hospital Rockwall",
+   "address": "3150 Horizon Road, Rockwall",
+   "lat": 32.88482,
+   "lng": -96.46588,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:relation/16736109",
+   "kind": "er",
+   "name": "University of Texas Southwestern Medical Center",
+   "address": null,
+   "lat": 32.81926,
+   "lng": -96.84547,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/466475400",
+   "kind": "er",
+   "name": "White Rock Medical Center",
+   "address": "9440 Poppy Drive, Dallas",
+   "lat": 32.8345,
+   "lng": -96.70552,
+   "note": "Emergency room"
+  },
+  {
+   "id": "osm:way/1527334664",
+   "kind": "warming",
+   "name": "Arcadia Park Branch Library",
+   "address": "1302 North Justin Avenue, Dallas",
+   "lat": 32.75914,
+   "lng": -96.90953,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/466984268",
+   "kind": "warming",
+   "name": "Bachman Lake Branch Library",
+   "address": "9480 Webb Chapel Road",
+   "lat": 32.86269,
+   "lng": -96.85932,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/470761102",
+   "kind": "warming",
+   "name": "Dallas Public Library - Fretz Branch",
+   "address": "6990 Belt Line Road, Dallas",
+   "lat": 32.94959,
+   "lng": -96.78325,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/675827169",
+   "kind": "warming",
+   "name": "Dallas Public Library - Lake June Branch",
+   "address": null,
+   "lat": 32.73379,
+   "lng": -96.69579,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/221378901",
+   "kind": "warming",
+   "name": "Dallas Public Library - Oak Lawn",
+   "address": "4100 Cedar Springs Road, Dallas",
+   "lat": 32.81238,
+   "lng": -96.81241,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/411081134",
+   "kind": "warming",
+   "name": "Dallas Public Library Audelia Road Branch",
+   "address": "10045 Audelia Road, Dallas",
+   "lat": 32.88566,
+   "lng": -96.71835,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/411079645",
+   "kind": "warming",
+   "name": "Dallas Public Library Lochwood Branch",
+   "address": "11221 Lochwood Boulevard, Dallas",
+   "lat": 32.8484,
+   "lng": -96.68828,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/466701931",
+   "kind": "warming",
+   "name": "Dallas West Branch Library",
+   "address": "2332 Singleton Boulevard",
+   "lat": 32.77833,
+   "lng": -96.86005,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/1280002109",
+   "kind": "warming",
+   "name": "Forest Green Branch Library",
+   "address": "9619 Greenville Ave",
+   "lat": 32.90673,
+   "lng": -96.74846,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/470761108",
+   "kind": "warming",
+   "name": "Fretz Recreation Center",
+   "address": "6950 Belt Line Road, Dallas",
+   "lat": 32.94887,
+   "lng": -96.78363,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/465040058",
+   "kind": "warming",
+   "name": "Grauwyler Park Recreation Center",
+   "address": "7780 Harry Hines Boulevard",
+   "lat": 32.83221,
+   "lng": -96.85899,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/663201460",
+   "kind": "warming",
+   "name": "Highland Hills Branch Library",
+   "address": null,
+   "lat": 32.67069,
+   "lng": -96.76077,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/28015805",
+   "kind": "warming",
+   "name": "J. Erik Jonsson Central Library",
+   "address": "1515 Young Street, Dallas",
+   "lat": 32.77836,
+   "lng": -96.79707,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/465016639",
+   "kind": "warming",
+   "name": "Juanita J. Craft Recreation Center",
+   "address": "4500 Spring Avenue, Dallas",
+   "lat": 32.77392,
+   "lng": -96.74211,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "manual:kbhcc",
+   "kind": "warming",
+   "name": "Kay Bailey Hutchison Convention Center",
+   "address": "650 S Griffin St, Dallas",
+   "lat": 32.77436,
+   "lng": -96.80006,
+   "note": "Citywide mass shelter (Harvey 2017) and warming center (Uri 2021): confirm it is open"
+  },
+  {
+   "id": "osm:way/464807904",
+   "kind": "warming",
+   "name": "Martin Luther King Jr. Branch Library",
+   "address": "2922 Martin Luther King Jr Boulevard",
+   "lat": 32.77056,
+   "lng": -96.76603,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/468812955",
+   "kind": "warming",
+   "name": "Mountain Creek Public Library",
+   "address": "6102 Mountain Creek Parkway",
+   "lat": 32.6506,
+   "lng": -96.96605,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/345123422",
+   "kind": "warming",
+   "name": "Nash-Davis Recreation Center",
+   "address": "3710 North Hampton Road, Dallas",
+   "lat": 32.78781,
+   "lng": -96.85571,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/465273084",
+   "kind": "warming",
+   "name": "North Oak Cliff Branch Library",
+   "address": "302 West 10th Street",
+   "lat": 32.74481,
+   "lng": -96.82702,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/467534814",
+   "kind": "warming",
+   "name": "Park Forest Library",
+   "address": "3421 Forest Lane",
+   "lat": 32.9101,
+   "lng": -96.86357,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/468812982",
+   "kind": "warming",
+   "name": "Park in the Woods Recreation Center",
+   "address": "6801 Mountain Creek Parkway, Dallas",
+   "lat": 32.64155,
+   "lng": -96.95572,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/465658522",
+   "kind": "warming",
+   "name": "Pleasant Oaks Park Recreation Building",
+   "address": "8600 Greenmound Avenue",
+   "lat": 32.75174,
+   "lng": -96.67234,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/468820040",
+   "kind": "warming",
+   "name": "Polk-Wisdom Branch Library",
+   "address": "7151 Library Lane, Dallas",
+   "lat": 32.6617,
+   "lng": -96.84205,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/351237347",
+   "kind": "warming",
+   "name": "Preston Royal Branch Library",
+   "address": "5626 Royal Lane",
+   "lat": 32.89437,
+   "lng": -96.81132,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/472664049",
+   "kind": "warming",
+   "name": "Reverchon Park Recreation Center",
+   "address": "3400 Maple Avenue",
+   "lat": 32.8016,
+   "lng": -96.81246,
+   "note": "Recreation center: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/465783657",
+   "kind": "warming",
+   "name": "Salvation Army Oak Cliff Community Center",
+   "address": "1617 West Jefferson Boulevard",
+   "lat": 32.746,
+   "lng": -96.84751,
+   "note": "Salvation Army center: confirm it is open"
+  },
+  {
+   "id": "osm:way/423963016",
+   "kind": "warming",
+   "name": "Timberglen Branch Library",
+   "address": "18505 Midway Road",
+   "lat": 33.00361,
+   "lng": -96.84513,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/1018303895",
+   "kind": "warming",
+   "name": "Vickery Park Branch Library",
+   "address": "8333 Park Lane",
+   "lat": 32.8719,
+   "lng": -96.7616,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  },
+  {
+   "id": "osm:way/587739362",
+   "kind": "warming",
+   "name": "White Rock Hills Branch Library",
+   "address": "9150 Ferguson Road, Dallas",
+   "lat": 32.814,
+   "lng": -96.69171,
+   "note": "Library: a city warming station in freezes, confirm it is open"
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { traceHref } from './TraceView';
-import { isP1Household, printReport } from './PrintReport';
+import { isP1Household, printReport, residentDirection } from './PrintReport';
 import { createPortal } from 'react-dom';
 import { COMMS, fmtTime, homes, type Status } from '../sim/world';
 import { useMap, counts, isKeyDecision, STATUS_COLOR, STATUS_LABEL, type ActionKind, type AgentLine, type Resident } from '../state/store';
@@ -587,6 +587,18 @@ export function HouseholdCard() {
           <div className="triage nc pick">{pickText}</div>
         </div>
       )}
+      {isP1Household(r, s) && (() => {
+        const d = residentDirection(r);
+        return d ? (
+          <div className="sect">
+            <div className="label">Take them to · {d.reason === 'medical' ? 'emergency room' : 'warming site'}</div>
+            <div className="triage nc">
+              <b>{d.goTo.place.name}</b> · {d.goTo.km} km
+              <div className="muted">{d.goTo.place.address ?? 'Address not listed'}{d.backup ? ` · backup: ${d.backup.place.name} (${d.backup.km} km)` : ''}</div>
+            </div>
+          </div>
+        ) : null;
+      })()}
       {(pending || latest) && (
         <div className="sect">
           <div className="label">Agents · {ACT_LABEL[(pending ?? latest)!.action]} · {fmtTime((pending ?? latest)!.at)}</div>

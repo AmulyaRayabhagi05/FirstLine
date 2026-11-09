@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { homes, type Status } from '../sim/world';
 import { useMap, STATUS_LABEL, type IncidentReport, type Resident } from '../state/store';
 import { cellToParent, REPORT_RES } from '../data/h3';
+import { directTo, mapsLink, SAFE_PLACES_SOURCE, type Directed, type Direction } from '../data/direct';
 
 export type PrintJob = { kind: 'person'; homeIdx: number } | { kind: 'area'; reportId: string } | { kind: 'areas' };
 
@@ -60,6 +61,51 @@ function Header({ title, sub }: { title: string; sub: string }) {
   );
 }
 
+/** The safe place this household is directed to, by the same rule the reports agent uses. */
+export function residentDirection(r: Resident): Direction | null {
+  return directTo({
+    lat: r.lat,
+    lng: r.lng,
+    poweredDevice: r.device,
+    medicalNeeds: r.medical,
+    professional: r.triage?.needs === 'professional' || r.escalated,
+    text: [r.triage?.reason ?? '', ...r.log.filter((l) => l.kind === 'sos').map((l) => l.text)].join(' '),
+  });
+}
+
+function PlaceLine({ label, d }: { label: string; d: Directed }) {
+  return (
+    <div className="pr-place">
+      <span className="pr-k">{label}</span>
+      <b>{d.place.name}</b> · {d.km} km
+      <div>{d.place.address ?? 'Address not listed'} · <span className="pr-muted">{d.place.note}</span></div>
+      <div className="pr-muted">Map: {mapsLink(d.place)}</div>
+    </div>
+  );
+}
+
+function WhereToGo({ r }: { r: Resident }) {
+  const d = residentDirection(r);
+  return (
+    <section className="pr-box pr-go">
+      <h2>Where to take them</h2>
+      {!d ? (
+        <p className="pr-muted">No location on file, so no place can be chosen. Call the household.</p>
+      ) : (
+        <>
+          <p>
+            <b>{d.reason === 'medical' ? 'Emergency room' : 'Warming site / shelter'}</b>, because the person {d.why}.
+          </p>
+          <PlaceLine label="Take them to" d={d.goTo} />
+          {d.backup && <PlaceLine label="If that is closed or unreachable" d={d.backup} />}
+          {d.er && <PlaceLine label="If it becomes a medical emergency" d={d.er} />}
+          <p className="pr-muted">Straight-line distances. Check blocked roads first. Places from {SAFE_PLACES_SOURCE}.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function PersonReport({ idx }: { idx: number }) {
   const r = useMap((s) => s.residents[idx]);
   const status = useMap((s) => s.statuses[idx]);
@@ -87,6 +133,8 @@ function PersonReport({ idx }: { idx: number }) {
         <div><span className="pr-k">Escalated</span><b>{r.escalated ? 'Yes, to professional responders' : 'No'}</b></div>
         <div><span className="pr-k">Near the river</span><b>{home.danger ? 'Yes' : 'No'}</b> ({home.riverKm} km)</div>
       </section>
+
+      <WhereToGo r={r} />
 
       <h2>Household · {r.people} {r.people === 1 ? 'person' : 'people'}</h2>
       <table className="pr-table">
@@ -180,19 +228,30 @@ function AreaReport({ report, rows, history }: { report: IncidentReport; rows: {
       <h2>Priority 1 households · most urgent first</h2>
       {sorted.length === 0 ? <p className="pr-muted">No Priority 1 household is open in this area right now.</p> : (
         <table className="pr-table">
-          <thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Status</th><th>Priority</th><th>Needs</th><th>Helper</th></tr></thead>
+          <thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Status</th><th>Needs</th><th>Helper</th><th>Take them to</th></tr></thead>
           <tbody>
-            {sorted.map(({ r, status }) => (
-              <tr key={r.householdId}>
-                <td>{r.name}{r.people > 1 ? ` +${r.people - 1}` : ''}</td>
-                <td>{r.age}</td>
-                <td>{r.address}</td>
-                <td>{STATUS_LABEL[status]}</td>
-                <td>{r.priority || '—'}</td>
-                <td>{[r.medical, r.device && 'powered device', r.alone && 'alone', r.mobility !== 'ok' && (MOBILITY[r.mobility] ?? r.mobility)].filter(Boolean).join(', ') || '—'}</td>
-                <td>{r.helper ?? (r.escalated ? 'Responders' : '—')}</td>
-              </tr>
-            ))}
+            {sorted.map(({ r, status }) => {
+              const d = residentDirection(r);
+              return (
+                <tr key={r.householdId}>
+                  <td>{r.name}{r.people > 1 ? ` +${r.people - 1}` : ''}</td>
+                  <td>{r.age}</td>
+                  <td>{r.address}</td>
+                  <td>{STATUS_LABEL[status]}</td>
+                  <td>{[r.medical, r.device && 'powered device', r.alone && 'alone', r.mobility !== 'ok' && (MOBILITY[r.mobility] ?? r.mobility)].filter(Boolean).join(', ') || '—'}</td>
+                  <td>{r.helper ?? (r.escalated ? 'Responders' : '—')}</td>
+                  <td>
+                    {d ? (
+                      <>
+                        <b>{d.goTo.place.name}</b> ({d.reason === 'medical' ? 'ER' : 'warming'}, {d.goTo.km} km)
+                        {d.goTo.place.address ? <div>{d.goTo.place.address}</div> : null}
+                        {d.backup && <div className="pr-muted">Backup: {d.backup.place.name} ({d.backup.km} km)</div>}
+                      </>
+                    ) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

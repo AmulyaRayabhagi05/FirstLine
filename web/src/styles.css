@@ -260,6 +260,11 @@ input[type='range'] { width: 100%; accent-color: var(--brand); margin: 0; }
   .pr-table tr { break-inside: avoid; }
   .pr-log .pr-t { white-space: nowrap; color: #555; width: 1%; }
   .pr-log .pr-a { white-space: nowrap; font-weight: 600; width: 1%; }
+  .pr-go { margin-top: 12px; border: 2px solid #e8283d; }
+  .pr-go h2 { margin-top: 0; }
+  .pr-place { margin: 6px 0; padding-left: 8px; border-left: 3px solid #ddd; break-inside: avoid; }
+  .pr-place b { font-size: 11.5pt; }
+  .pr-place .pr-muted { font-size: 8.5pt; word-break: break-all; }
   .pr-pre { white-space: pre-wrap; font: 9pt/1.4 ui-monospace, Consolas, monospace; border: 1px solid #ddd; padding: 8px; }
 }
 @media (max-width: 760px) { .reports { display: none; } }

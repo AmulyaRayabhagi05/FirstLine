@@ -43,6 +43,9 @@ export interface Resident {
   members: { id: bigint; status: Status; name: string; age: number; priority: string; medical: string; lastSeen: number | null }[];
   /** The household's H3 res-9 cell (incident reports are written per res-8 parent). */
   cell: string;
+  /** The household's real location, for directions to a safe place. */
+  lat: number;
+  lng: number;
   /** Every agent step about this household (thoughts, tool calls, results, decisions). */
   reasoning: AgentLine[];
   /** Latest Nemotron triage of anyone in the household. */

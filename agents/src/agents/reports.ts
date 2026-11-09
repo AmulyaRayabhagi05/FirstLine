@@ -5,6 +5,7 @@ import { cellToParent } from "h3-js";
 import { z } from "zod";
 import type { Id, Person } from "../store/types.js";
 import { defineTool, runAgentLoop, stepLogger, type AgentDeps } from "./loop.js";
+import { directionLine, directTo } from "../places/direct.js";
 
 export const REPORT_RES = 8;
 
@@ -52,6 +53,8 @@ Incident reports are only for Priority 1 (life threat) cases. Write a short brie
 for professional responders about the P1 people in one neighborhood cell: how many there are, who they are
 (name, age) and why each is P1, whether help is on the way, blocked roads and weather. Do not describe P2,
 unknown or safe people beyond one count.
+For every P1 person, say where to take them: the place in their direct_to (name and address) and the backup.
+Use only those places; never invent one. A shelter or library must be confirmed open before sending someone.
 Call get_cell_overview first, then get_blocked_roads and get_weather, then save_incident_report, then done=true.`;
 
 export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<ReportOutcome> {
@@ -80,6 +83,21 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
     for (const p of stats.people.filter((x) => x.status !== "safe" && x.priority === "P1")) {
       const sos = (await store.listOpenSos()).find((s) => s.personId === p.id);
       const triage = sos ? await store.getTriageForSos(sos.id) : undefined;
+      const home = await store.getHousehold(p.householdId);
+      const d = directTo({
+        lat: home?.lat ?? p.lastLat,
+        lng: home?.lng ?? p.lastLng,
+        poweredDevice: p.poweredDevice,
+        medicalNeeds: p.medicalNeeds,
+        professional: triage?.needs === "professional",
+        text: `${sos?.message ?? ""} ${triage?.reason ?? ""}`,
+      });
+      const at = (x: { place: { name: string; address: string | null; note: string }; km: number }) => ({
+        name: x.place.name,
+        address: x.place.address,
+        km: x.km,
+        note: x.place.note,
+      });
       urgent.push({
         person_id: p.id,
         name: p.name,
@@ -88,6 +106,10 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
         score: p.priorityScore,
         sos: sos ? { id: sos.id, state: sos.state, message: sos.message } : null,
         triage_reason: triage?.reason ?? null,
+        direct_to: d ? { ...at(d.goTo), because: d.why } : null,
+        backup: d?.backup ? at(d.backup) : null,
+        nearest_er: d?.er ? at(d.er) : null,
+        direction: d ? directionLine(d) : null,
       });
     }
     urgent.sort((a, b) => b.score - a.score);
@@ -103,10 +125,18 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
     };
   };
 
+  // Every P1 report says where to take each P1 person. If the model left a destination out, the
+  // rule's line is added, so a responder never gets a briefing without a place to go.
+  const withDirections = async (summary: string) => {
+    const missing = (await overview()).urgent.filter((u) => u.direct_to && !summary.toLowerCase().includes(u.direct_to.name.toLowerCase()));
+    if (missing.length === 0) return summary;
+    return `${summary.trim()} Where to go: ${missing.slice(0, 3).map((u) => `${u.name}, ${u.direction}`).join("; ")}.`;
+  };
+
   const tools = [
     defineTool({
       name: "get_cell_overview",
-      description: "Counts and the most urgent people in this cell.",
+      description: "Counts and the P1 people in this cell, each with direct_to (where to take them), backup and the nearest ER.",
       input: z.object({}).passthrough(),
       run: overview,
     }),
@@ -127,7 +157,7 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
       description: "Save the briefing. Call exactly once.",
       input: z.object({ summary: z.string().min(10), blocked_roads: z.string().optional() }),
       run: async ({ summary, blocked_roads }) =>
-        saved ? { already_saved: true } : save(summary, blocked_roads ?? (await getRoads()).join(", "), "model"),
+        saved ? { already_saved: true } : save(await withDirections(summary), blocked_roads ?? (await getRoads()).join(", "), "model"),
     }),
   ];
 
@@ -145,7 +175,7 @@ export async function runCellReport(deps: AgentDeps, stats: CellStats): Promise<
     const o = await overview();
     const worst = o.urgent
       .slice(0, 3)
-      .map((u) => `${u.name} (${u.age}${u.triage_reason ? `: ${u.triage_reason}` : ""})`)
+      .map((u) => `${u.name} (${u.age}${u.triage_reason ? `: ${u.triage_reason}` : ""})${u.direction ? `, ${u.direction}` : ""}`)
       .join("; ");
     const r = await getRoads();
     const summary =

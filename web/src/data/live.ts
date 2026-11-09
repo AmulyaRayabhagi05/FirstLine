@@ -325,6 +325,8 @@ function snapshot(conn: DbConnection) {
         lastSeen: ms(m.lastSeen) ?? null,
       })),
       cell: h.h3Cell,
+      lat: h.lat,
+      lng: h.lng,
       reasoning: linesByHome.get(idx) ?? [],
       triage: householdTriage(members.map((m) => latestTriage.get(key(m.id)))),
       assignment: householdAssignment(ids),
